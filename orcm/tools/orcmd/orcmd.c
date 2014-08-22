@@ -42,7 +42,6 @@
 #include "orcm/runtime/orcm_globals.h"
 #include "orcm/mca/scd/base/base.h"
 #include "orcm/mca/scd/scd_types.h"
-#include "orcm/mca/diag/diag.h"
 
 #include "orcm/runtime/runtime.h"
 
@@ -366,12 +365,6 @@ static void orcmd_recv(int status, orte_process_name_t* sender,
             OBJ_RELEASE(buf);
             return;
         }
-        break;
-
-    case ORCM_CALIBRATE:
-        opal_output(0, "%s: RUNNING CALIBRATION",
-                    ORTE_NAME_PRINT(ORTE_PROC_MY_NAME));
-        orcm_diag.calibrate();
         break;
 
     default:

@@ -11,20 +11,11 @@
 
 SUBDIRS += \
         tools/octl \
-        tools/oflow \
-        tools/ops \
-        tools/opwrvirus \
         tools/oqueue \
-        tools/oqueue \
-        tools/orcm-emulator \
         tools/orcm-info \
-        tools/orcmctrld \
         tools/orcmd \
         tools/orcmsched \
         tools/orun \
         tools/osub \
-        tools/odiag \
-        tools/otestcmd \
-        tools/otop \
         tools/orcmsd \
         tools/wrappers
