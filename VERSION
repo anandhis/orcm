@@ -13,7 +13,7 @@
 # major, minor, and release are generally combined in the form
 # <major>.<minor>.<release>.  If release is zero, then it is omitted.
 
-major=1
+major=0
 minor=9
 release=0
 
@@ -24,7 +24,7 @@ release=0
 # only requirement is that it must be entirely printable ASCII
 # characters and have no white space.
 
-greek=a1
+greek=rc1
 
 # If want_repo_rev=1, then the repo revision number will be included
 # in the overall Open MPI version number in some form.
@@ -90,14 +90,15 @@ date="Unreleased developer copy"
 # Version numbers are described in the Libtool current:revision:age
 # format.
 
-libopen_rte_so_version=0:0:0
-libopen_pal_so_version=0:0:0
-liborcm_so_version=0:0:0
+libopen_rte_so_version=7:4:0
+libopen_pal_so_version=8:0:2
+liborcm_so_version=0:9:0
 
 # OPAL layer
-libmca_opal_common_pmi_so_version=0:0:0
-libmca_common_cuda_so_version=0:0:0
-libmca_common_ofacm_so_version=0:0:0
-libmca_common_sm_so_version=0:0:0
-libmca_common_ugni_so_version=0:0:0
-libmca_common_verbs_so_version=0:0:0
+libmca_common_cuda_so_version=1:6:0
+libmca_common_mx_so_version=2:5:0
+libmca_common_sm_so_version=4:4:0
+libmca_common_ugni_so_version=2:1:2
+libmca_common_verbs_so_version=2:3:2
+
+libmca_opal_common_pmi_so_version=2:2:1
