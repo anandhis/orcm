@@ -32,7 +32,6 @@ with_odbc=yes
 with_sigar=yes
 with_coretemp=yes
 with_freq=yes
-with_pwr=yes
 with_ipmi=yes
 with_odbc=yes
 with_memtest=yes
