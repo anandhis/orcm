@@ -111,7 +111,7 @@ static int call_readein(node_power_data *data, int to_print)
         opal_output(0,"Unable to reach IPMI device for node: %s",cap->node.name );
         opal_output(0,"ipmi_cmdraw ERROR : %s \n", error_string);
         ipmi_close();
-        return -1;
+        return ORCM_ERROR;
     }
 
     if (to_print){
@@ -148,7 +148,7 @@ static int call_readein(node_power_data *data, int to_print)
     }
     ipmi_close();
 
-    return 0;
+    return ORCM_SUCCESS;
 }
 
 static bool log_enabled = true;
@@ -174,7 +174,7 @@ static void start(orte_jobid_t jobid)
     _tv.interval=0;
 
     ret=call_readein(&_node_power, 0);
-    if (ret==-1){
+    if (ret==ORCM_ERROR){
         opal_output(0,"Unable to reach IPMI device for node: %s",cap->node.name );
         _readein.readein_accu_prev=0;
         _readein.readein_cnt_prev=0;
@@ -230,7 +230,7 @@ static void nodepower_sample(orcm_sensor_sampler_t *sampler)
 
     ret=call_readein(&_node_power, 0);
     _readein.ipmi_calls++;
-    if (ret==-1){
+    if (ret==ORCM_ERROR){
         opal_output(0,"Unable to reach IPMI device for node: %s",cap->node.name );
         _readein.readein_accu_curr=_readein.readein_accu_prev;
         _readein.readein_cnt_curr=_readein.readein_cnt_prev;
