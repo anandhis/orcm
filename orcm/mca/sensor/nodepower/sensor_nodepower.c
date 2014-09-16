@@ -45,8 +45,6 @@
 #include "orcm/mca/sensor/base/sensor_private.h"
 #include "sensor_nodepower.h"
 
-#include <ipmicmd.h>
-
 #define MAX_IPMI_RESPONSE 1024
 
 /* declare the API functions */
