@@ -21,6 +21,7 @@
 
 #include "orte/mca/errmgr/errmgr.h"
 #include "orcm/mca/db/db.h"
+#include "orte/util/show_help.h"
 
 #include "sensor_ipmi.h"
 #include <pthread.h>
@@ -134,8 +135,7 @@ int orcm_sensor_ipmi_get_bmc_cred(orcm_sensor_hosts_t *host)
         {
             error_string = decode_rv(ret);
             orte_show_help("help-orcm-sensor-ipmi.txt", "ipmi-cmd-fail",
-                           true, orte_process_info.nodename,
-                           orte_process_info.nodename, error_string);
+                           true, orte_process_info.nodename, error_string);
             if (ERR_NO_DRV == ret) {
                 return ORCM_ERROR;
             } else {
