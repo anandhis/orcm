@@ -440,8 +440,6 @@ static void res_log(opal_buffer_t *sample)
         }
     }
 
-    OBJ_RELEASE(nst);
-
     if (mca_sensor_resusage_component.log_process_stats) {
         /* unpack all process stats */
         n=1;
@@ -449,9 +447,16 @@ static void res_log(opal_buffer_t *sample)
             vals = OBJ_NEW(opal_list_t);
 
             kv = OBJ_NEW(opal_value_t);
-            kv->key = strdup("node");
+            kv->key = strdup("ctime");
+            kv->type = OPAL_TIMEVAL;
+            kv->data.tv.tv_sec = nst->sample_time.tv_sec;
+            kv->data.tv.tv_usec = nst->sample_time.tv_usec;
+            opal_list_append(vals, &kv->super);
+
+            kv = OBJ_NEW(opal_value_t);
+            kv->key = strdup("hostname");
             kv->type = OPAL_STRING;
-            kv->data.string = strdup(st->node);
+            kv->data.string = strdup(node);
             opal_list_append(vals, &kv->super);
 
             kv = OBJ_NEW(opal_value_t);
@@ -551,6 +556,9 @@ static void res_log(opal_buffer_t *sample)
         }
         if (OPAL_ERR_UNPACK_READ_PAST_END_OF_BUFFER != rc) {
             ORTE_ERROR_LOG(rc);
+        }
+        if (mca_sensor_resusage_component.log_node_stats) {
+            OBJ_RELEASE(nst);
         }
     }
 }
