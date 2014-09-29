@@ -520,13 +520,6 @@ static void res_log(opal_buffer_t *sample)
             opal_list_append(vals, &kv->super);
 
             kv = OBJ_NEW(opal_value_t);
-            kv->key = strdup("time");
-            kv->type = OPAL_TIMEVAL;
-            kv->data.tv.tv_sec = st->time.tv_sec;
-            kv->data.tv.tv_usec = st->time.tv_usec;
-            opal_list_append(vals, &kv->super);
-
-            kv = OBJ_NEW(opal_value_t);
             kv->key = strdup("percent_cpu");
             kv->type = OPAL_FLOAT;
             kv->data.fval = st->percent_cpu;
