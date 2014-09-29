@@ -560,12 +560,36 @@ static void ipmi_sample(orcm_sensor_sampler_t *sampler)
         timeout++;
         opal_output_verbose(5, orcm_sensor_base_framework.framework_output,
             "First Sample: Packing Credentials");
-        /* pack the numerical identifier for number of nodes*/
+
+        /* pack the numerical identifier for number of nodes - 1a*/
         if (OPAL_SUCCESS != (rc = opal_dss.pack(&data, &sample_count, 1, OPAL_INT))) {
             ORTE_ERROR_LOG(rc);
             OBJ_DESTRUCT(&data);
             return;
         }
+
+        /* get the sample time */
+        now = time(NULL);
+        tdiff = difftime(now, last_sample);
+        /* pass the time along as a simple string */
+        sample_time = localtime(&now);
+        if (NULL == sample_time) {
+            ORTE_ERROR_LOG(OPAL_ERR_BAD_PARAM);
+            return;
+        }
+        strftime(time_str, sizeof(time_str), "%F %T%z", sample_time);
+        asprintf(&timestamp_str, "%s", time_str);
+
+        opal_output_verbose(5, orcm_sensor_base_framework.framework_output,
+            "***** TimeStamp: %s",timestamp_str);
+
+        /* Pack the Sample Time - 1b */
+        if (OPAL_SUCCESS != (rc = opal_dss.pack(&data, &timestamp_str, 1, OPAL_STRING))) {
+            ORTE_ERROR_LOG(rc);
+            OBJ_DESTRUCT(&data);
+            return;
+        }
+        free(timestamp_str);
 
         /* Pack our node name - 2a*/
         if (OPAL_SUCCESS != (rc = opal_dss.pack(&data, &orte_process_info.nodename, 1, OPAL_STRING))) {
@@ -925,6 +949,17 @@ static void ipmi_log(opal_buffer_t *sample)
         if(sample_count==0) {
             /*New Node is getting added */
 
+            /* sample time - 1b */
+            n=1;
+            if (OPAL_SUCCESS != (rc = opal_dss.unpack(sample, &sampletime, &n, OPAL_STRING))) {
+                ORTE_ERROR_LOG(rc);
+                return;
+            }
+            if (NULL == sampletime) {
+                ORTE_ERROR_LOG(OPAL_ERR_BAD_PARAM);
+                return;
+            }
+
             /* Unpack the node_name - 2 */
             n=1;
             if (OPAL_SUCCESS != (rc = opal_dss.unpack(sample, &hostname, &n, OPAL_STRING))) {
@@ -1070,6 +1105,15 @@ static void ipmi_log(opal_buffer_t *sample)
              * Inventory)
              */
             vals = OBJ_NEW(opal_list_t);
+
+            kv = OBJ_NEW(opal_value_t);
+            kv->key = strdup("ctime");
+            kv->type = OPAL_STRING;
+            kv->data.string = strdup(sampletime);
+            opal_list_append(vals, &kv->super);
+            opal_output_verbose(5, orcm_sensor_base_framework.framework_output,
+                "UnPacked cTime: %s", sampletime);
+            free(sampletime);
 
             kv = OBJ_NEW(opal_value_t);
             kv->key = strdup("nodename");
