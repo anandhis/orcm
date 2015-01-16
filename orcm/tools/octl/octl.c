@@ -130,9 +130,6 @@ static int orcm_octl_init(int argc, char *argv[])
         exit(0);
     }
     
-    /* initialize orcm for use as a tool */
-    ret = orcm_init(ORCM_TOOL);
-
     /* Since this process can now handle MCA/GMCA parameters, make sure to
      * process them. */
     if (OPAL_SUCCESS != (ret = mca_base_cmd_line_process_args(&cmd_line, &environ, &environ))) {
