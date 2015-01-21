@@ -135,8 +135,10 @@ static int orcm_ocli_init(int argc, char *argv[])
 
     /* Since this process can now handle MCA/GMCA parameters, make sure to
      * process them. */
-    mca_base_cmd_line_process_args(&cmd_line, &environ, &environ);
-    
+    if (OPAL_SUCCESS != (ret = mca_base_cmd_line_process_args(&cmd_line, &environ, &environ))) {
+        exit(ret);
+    }
+
     /* get the commandline without mca params */
     opal_cmd_line_get_tail(&cmd_line, &tailc, &tailv);
 
