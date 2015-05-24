@@ -13,8 +13,8 @@
 # major, minor, and release are generally combined in the form
 # <major>.<minor>.<release>.  If release is zero, then it is omitted.
 
-major=1
-minor=0
+major=0
+minor=9
 release=0
 
 # greek is used for alpha or beta release tags.  If it is non-empty,
@@ -41,7 +41,7 @@ repo_rev=
 # tarball_version is not empty, the tarball filename will be of the
 # form openmpi-<tarball_version>.tar.*.
 
-tarball_version=gitclone
+tarball_version=0.9.0a1
 
 # The date when this release was created
 
