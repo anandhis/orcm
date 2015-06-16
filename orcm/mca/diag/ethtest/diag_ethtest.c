@@ -343,6 +343,7 @@ sendresults:
         if ( NULL != gstring ) {
             free(gstring);
         }
+
         free(diag_result);
 
         return;
@@ -360,6 +361,7 @@ sendresults:
         if ( NULL != gstring ) {
             free(gstring);
         }
+
         free(diag_result);
 
         return;
@@ -377,6 +379,7 @@ sendresults:
         if ( NULL != gstring ) {
             free(gstring);
         }
+
         free(diag_result);
 
         return;
@@ -393,6 +396,7 @@ sendresults:
         if ( NULL != gstring ) {
             free(gstring);
         }
+
         free(diag_result);
 
         return;
@@ -409,6 +413,7 @@ sendresults:
         if ( NULL != gstring ) {
             free(gstring);
         }
+
         free(diag_result);
 
         return;
@@ -426,6 +431,7 @@ sendresults:
         if ( NULL != gstring ) {
             free(gstring);
         }
+
         free(diag_result);
 
         return;
@@ -436,8 +442,12 @@ sendresults:
     if (OPAL_SUCCESS != (rc = opal_dss.pack(data, &result_num, 1, OPAL_INT))) {
         ORTE_ERROR_LOG(rc);
         OBJ_DESTRUCT(&data);
-        free(eth_test);
-        free(gstring);
+        if ( NULL != eth_test ) {
+            free(eth_test);
+        }
+        if ( NULL != gstring ) {
+            free(gstring);
+        }
         return;
     }
 
@@ -447,8 +457,12 @@ sendresults:
         if (OPAL_SUCCESS != (rc = opal_dss.pack(data, &diag_subtype, 1, OPAL_STRING))) {
             ORTE_ERROR_LOG(rc);
             OBJ_DESTRUCT(&data);
-            free(eth_test);
-            free(gstring);
+            if ( NULL != eth_test ) {
+                free(eth_test);
+            }
+            if ( NULL != gstring ) {
+                free(gstring);
+            }
             return;
         }
         free(diag_subtype);
@@ -456,8 +470,12 @@ sendresults:
         if (OPAL_SUCCESS != (rc = opal_dss.pack(data, &(eth_test->data[i]), 1, OPAL_INT))) {
             ORTE_ERROR_LOG(rc);
             OBJ_DESTRUCT(&data);
-            free(eth_test);
-            free(gstring);
+            if ( NULL != eth_test ) {
+                free(eth_test);
+            }
+            if ( NULL != gstring ) {
+                free(gstring);
+            }
             return;
         }
     }
