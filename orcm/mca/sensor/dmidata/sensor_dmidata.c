@@ -182,9 +182,9 @@ static char* check_inv_key(char *inv_key, enum inv_item_req req)
                     "Discarding the inventory item %s with ignore string %s ",inv_keywords[i][3],inv_key);
             } else {
                 if(req == INVENTORY_KEY)
-                    return inv_keywords[i][4];
+                    return inv_keywords[i][4]; /* Returns the inventory item's key */
                 else
-                    return inv_keywords[i][5];
+                    return inv_keywords[i][5]; /* Returns the inventory item's test vecor value */
             }
         }
         i++;
@@ -409,6 +409,7 @@ static void extract_cpu_freq_steps(char *freq_step_list, char *hostname, dmidata
     if(strcmp(freq_step_list,"NULL") == 0) {
         opal_output_verbose(5, orcm_sensor_base_framework.framework_output,
             "Frequency Steps not available");
+        return;
     } else {
         freq_list_token = opal_argv_split(freq_step_list, ' ');
         size = opal_argv_count(freq_list_token)-1;
@@ -458,6 +459,12 @@ static void dmidata_inventory_collect(opal_buffer_t *inventory_snapshot)
             fseek(fptr, 0, SEEK_END);
             size = ftell(fptr);
             freq_list = (char*)malloc(size);
+            if (NULL == freq_list) {
+                opal_output_verbose(5, orcm_sensor_base_framework.framework_output,
+                    "Unable to allocate memory");
+                fclose(fptr);
+                return;
+            }
             rewind(fptr);
             fgets(freq_list, size, fptr);
             fclose(fptr);
@@ -588,10 +595,16 @@ static void generate_test_vector(opal_buffer_t *v)
         if(NULL != (inv_key = check_inv_key(obj->infos[k].name, INVENTORY_KEY)))
         {
             inv_tv = check_inv_key(obj->infos[k].name, INVENTORY_TEST_VECTOR);
-            free(obj->infos[k].value);
-            obj->infos[k].value = strdup(inv_tv);
-            opal_output_verbose(5, orcm_sensor_base_framework.framework_output,
-                "Found Inventory Item %s : %s",inv_key, obj->infos[k].value);
+            if(NULL != inv_tv) {
+                free(obj->infos[k].value);
+                obj->infos[k].value = strdup(inv_tv);
+                opal_output_verbose(5, orcm_sensor_base_framework.framework_output,
+                    "Found Inventory Item %s : %s",inv_key, obj->infos[k].value);
+            } else {
+                opal_output_verbose(5, orcm_sensor_base_framework.framework_output,
+                    "Unable to retrieve object from test vector");
+                return;
+            }
         }
     }
 
@@ -605,13 +618,12 @@ static void generate_test_vector(opal_buffer_t *v)
         obj=obj->next_cousin;
         /* Pack the total CPU Stats present and to be copied */
         for (k=0; k < obj->infos_count; k++) {
-            if(NULL != (inv_key = check_inv_key(obj->infos[k].name, INVENTORY_KEY)))
+            if(NULL != (inv_tv = check_inv_key(obj->infos[k].name, INVENTORY_TEST_VECTOR)))
             {
-                inv_tv = check_inv_key(obj->infos[k].name, INVENTORY_TEST_VECTOR);
                 free(obj->infos[k].value);
                 obj->infos[k].value = strdup(inv_tv);
                 opal_output_verbose(5, orcm_sensor_base_framework.framework_output,
-                    "Found Inventory Item %s : %s",inv_key, obj->infos[k].value);
+                    "Found Inventory Item %s : %s",obj->infos[k].name, obj->infos[k].value);
             }
         }
     }
