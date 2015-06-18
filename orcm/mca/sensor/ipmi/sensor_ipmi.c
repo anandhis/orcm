@@ -636,12 +636,12 @@ static bool compare_ipmi_record (ipmi_inventory_t* newhost , ipmi_inventory_t* o
     }
     newitem = (orcm_metric_value_t*)opal_list_get_first(newhost->records);
     olditem = (orcm_metric_value_t*)opal_list_get_first(oldhost->records);
-    if( NULL == olditem || NULL == newitem) {
-        opal_output(0, "IPMI Unable to retrieve items");
-        return false;
-    }
 
     for(count = 0; count < record_size ; count++) {
+        if( NULL == olditem || NULL == newitem) {
+            opal_output(0, "IPMI Unable to retrieve items");
+            return false;
+        }
         if(newitem->value.type != olditem->value.type) {
             opal_output(0,"IPMI inventory records mismatch: value.type mismatch");
             return false;
