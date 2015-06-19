@@ -33,28 +33,20 @@ AC_DEFUN([_OPAL_CHECK_PACKAGE_HEADER], [
     # so this sucks, but there's no way to get through the progression
     # of header includes without killing off the cache variable and trying
     # again...
-    unset opal_Header
+	unset opal_Header
+	opal_check_package_header_happy="no"
 
-    opal_check_package_header_happy="no"
-    AS_IF([test "$3" = "/usr" || \
-           test "$3" = "/usr/local"],
-           [ # try as is...
-            AC_VERBOSE([looking for header without includes])
-            AC_CHECK_HEADERS([$2], [opal_check_package_header_happy="yes"], [])
-            AS_IF([test "$opal_check_package_header_happy" = "no"],
-                  [# no go on the as is - reset the cache and try again
-                   unset opal_Header])])
+	AS_IF([test "$3" != ""],
+		AS_IF([test -e $3/$2],[$1_CPPFLAGS="$$1_CPPFLAGS -I$3"
+                    CPPFLAGS="$CPPFLAGS -I$3"],
+			AS_IF([test -e $3/include/$2],[$1_CPPFLAGS="$$1_CPPFLAGS -I$3/include"
+                            CPPFLAGS="$CPPFLAGS -I$3/include"] )))
 
-    AS_IF([test "$opal_check_package_header_happy" = "no"],
-          [AS_IF([test "$3" != ""],
-                 [$1_CPPFLAGS="$$1_CPPFLAGS -I$3/include"
-                  CPPFLAGS="$CPPFLAGS -I$3/include"])
-          AC_CHECK_HEADERS([$2], [opal_check_package_header_happy="yes"], [], [$6])
-	  AS_IF([test "$opal_check_package_header_happy" = "yes"], [$4], [$5])],
-          [$4])
-    unset opal_check_package_header_happy
+	AC_CHECK_HEADERS([$2], [opal_check_package_header_happy="yes"], [], [$6])
+	AS_IF([test "$opal_check_package_header_happy" = "yes"], [$4], [$5])
 
-    AS_VAR_POPDEF([opal_Header])dnl
+	unset opal_check_package_header_happy
+	AS_VAR_POPDEF([opal_Header])dnl
 ])
 
 
@@ -71,6 +63,7 @@ AC_DEFUN([_OPAL_CHECK_PACKAGE_LIB], [
     # see comment above
     unset opal_Lib
     opal_check_package_lib_happy="no"
+
     AS_IF([test "$6" != ""],
           [ # libdir was specified - search only there
            $1_LDFLAGS="$$1_LDFLAGS -L$6"
@@ -193,8 +186,11 @@ AC_DEFUN([OPAL_CHECK_PACKAGE],[
     opal_check_package_$1_orig_LDFLAGS="$$1_LDFLAGS"
     opal_check_package_$1_orig_LIBS="$$1_LIBS"
 
-    _OPAL_CHECK_PACKAGE_HEADER([$1], [$2], [$6],
-          [_OPAL_CHECK_PACKAGE_LIB([$1], [$3], [$4], [$5], [$6], [$7],
+    dir_aux=$6
+    dir_aux=${dir_aux/%\//}
+
+    _OPAL_CHECK_PACKAGE_HEADER([$1], [$2], [$dir_aux],
+          [_OPAL_CHECK_PACKAGE_LIB([$1], [$3], [$4], [$5], [$dir_aux], [$7],
                 [opal_check_package_happy="yes"],
                 [opal_check_package_happy="no"])],
           [opal_check_package_happy="no"],
@@ -210,4 +206,6 @@ AC_DEFUN([OPAL_CHECK_PACKAGE],[
     CPPFLAGS="$opal_check_package_$1_save_CPPFLAGS"
     LDFLAGS="$opal_check_package_$1_save_LDFLAGS"
     LIBS="$opal_check_package_$1_save_LIBS"
+
+    unset dir_aux
 ])
