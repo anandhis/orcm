@@ -486,12 +486,9 @@ static void mcedata_mem_ctrl_filter(unsigned long *mce_reg, opal_list_t *vals)
                             "Corrected filtering enabled");
         kv->data.flag = true;
     } else {
-        kv->data.flag = true;
+        kv->data.flag = false;
     }
-        opal_list_append(vals, &kv->super);
-
-   
-
+    opal_list_append(vals, &kv->super);
 }
 
 static void mcedata_cache_filter(unsigned long *mce_reg, opal_list_t *vals)
@@ -702,7 +699,7 @@ static void mcedata_bus_ic_filter(unsigned long *mce_reg, opal_list_t *vals)
     kv->key = strdup("participation");
     kv->type = OPAL_STRING;
 
-    pp = ((mce_reg[MCI_MISC] & 0x600) >> 9);
+    pp = ((mce_reg[MCI_STATUS] & 0x600) >> 9);
     switch (pp) {
         case 0: kv->data.string = strdup("SRC"); break;
         case 1: kv->data.string = strdup("RES"); break;
@@ -716,7 +713,7 @@ static void mcedata_bus_ic_filter(unsigned long *mce_reg, opal_list_t *vals)
     kv->key = strdup("T");
     kv->type = OPAL_STRING;
 
-    t = ((mce_reg[MCI_MISC] & 0x100) >> 8);
+    t = ((mce_reg[MCI_STATUS] & 0x100) >> 8);
     switch (t) {
         case 0: kv->data.string = strdup("TIMEOUT"); break;
         case 1: kv->data.string = strdup("NOTIMEOUT"); break;
@@ -728,7 +725,7 @@ static void mcedata_bus_ic_filter(unsigned long *mce_reg, opal_list_t *vals)
     kv->key = strdup("II");
     kv->type = OPAL_STRING;
 
-    ii = ((mce_reg[MCI_MISC] & 0xC) >> 2);
+    ii = ((mce_reg[MCI_STATUS] & 0xC) >> 2);
     switch (pp) {
         case 0: kv->data.string = strdup("M"); break;
         case 1: kv->data.string = strdup("reserved"); break;
@@ -894,7 +891,7 @@ static void collect_sample(orcm_sensor_sampler_t *sampler)
     uint64_t i = 0, cpu=0, socket=0, bank=0;
     uint64_t mce_reg[MCE_REG_COUNT];
     uint64_t tot_lines;
-    static uint64_t index; /* non-volatile declaration to store last read line number */
+    static uint64_t index = 0; /* non-volatile declaration to store last read line number */
     char* line;
     char *loc = NULL;
 
@@ -904,6 +901,16 @@ static void collect_sample(orcm_sensor_sampler_t *sampler)
     opal_output_verbose(3, orcm_sensor_base_framework.framework_output,
                         "Total lines: %lu", tot_lines);
 
+    if (true != mca_sensor_mcedata_component.historical_collection) {
+        /* If the user requires MCE collection from the point when ORCM was
+         * started, then we should ignore all the events logged prior to ORCM
+         * launch. */
+        if (0 == index) {
+            /* Need to set this only the first time sample is called immediately
+             * after orcm launch */
+            index = tot_lines;
+        }
+    }
     while (index < tot_lines) {
         line = get_line(mca_sensor_mcedata_component.logfile,index);
         if(NULL != line) {
@@ -1016,7 +1023,7 @@ static void collect_sample(orcm_sensor_sampler_t *sampler)
                 if(NULL != line) {
                     loc = strstr(line, " MCGSTATUS ");
                     if(NULL != loc) {
-                        mce_reg[MCG_STATUS] = strtoull(loc+strlen(" MCGSTATUS 0x"), NULL, 16);
+                        mce_reg[MCG_STATUS] = strtoull(loc+strlen(" MCGSTATUS 0x"), NULL, 0);
                         opal_output_verbose(3, orcm_sensor_base_framework.framework_output,
                                             "MCG_STATUS: 0x%lx", mce_reg[MCI_STATUS]);
                     } else {
