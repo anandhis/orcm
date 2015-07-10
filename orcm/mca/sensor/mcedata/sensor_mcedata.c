@@ -593,7 +593,7 @@ static void mcedata_cache_filter(unsigned long *mce_reg, opal_list_t *vals)
         }
         opal_list_append(vals, &kv->super);
 
-        if(!uc) {
+        if(!uc && ((mce_reg[MCG_CAP]&0x800)>>11)) { /* Table 15-1 */
             opal_output_verbose(3, orcm_sensor_base_framework.framework_output,
                                 "Enhanced chache reporting available");
             cache_health = (((mce_reg[MCI_STATUS] & HEALTH_STATUS_MASK ) >> 53) & 0x3);
@@ -712,10 +712,10 @@ static void mcedata_bus_ic_filter(unsigned long *mce_reg, opal_list_t *vals)
     kv->key = strdup("T");
     kv->type = OPAL_STRING;
 
-    t = ((mce_reg[MCI_STATUS] & 0x100) >> 8);
+    t = (((mce_reg[MCI_STATUS] & 0x100) >> 8) & 0x1);
     switch (t) {
-        case 0: kv->data.string = strdup("TIMEOUT"); break;
-        case 1: kv->data.string = strdup("NOTIMEOUT"); break;
+        case 0: kv->data.string = strdup("NOTIMEOUT"); break;
+        case 1: kv->data.string = strdup("TIMEOUT"); break;
     }
     opal_list_append(vals, &kv->super);
 
@@ -724,8 +724,8 @@ static void mcedata_bus_ic_filter(unsigned long *mce_reg, opal_list_t *vals)
     kv->key = strdup("II");
     kv->type = OPAL_STRING;
 
-    ii = ((mce_reg[MCI_STATUS] & 0xC) >> 2);
-    switch (pp) {
+    ii = (((mce_reg[MCI_STATUS] & 0xC) >> 2)&0x3);
+    switch (ii) {
         case 0: kv->data.string = strdup("M"); break;
         case 1: kv->data.string = strdup("reserved"); break;
         case 2: kv->data.string = strdup("IO"); break;
@@ -1029,7 +1029,7 @@ static void collect_sample(orcm_sensor_sampler_t *sampler)
                     if(NULL != loc) {
                         mce_reg[MCG_STATUS] = strtoull(loc+strlen(" MCGSTATUS 0x"), NULL, 0);
                         opal_output_verbose(3, orcm_sensor_base_framework.framework_output,
-                                            "MCG_STATUS: 0x%lx", mce_reg[MCI_STATUS]);
+                                            "MCG_STATUS: 0x%lx", mce_reg[MCG_STATUS]);
                     } else {
                         free(line);
                         line = NULL;
