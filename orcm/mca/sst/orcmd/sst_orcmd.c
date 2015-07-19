@@ -80,7 +80,6 @@
 #include "orte/runtime/orte_quit.h"
 
 #include "orcm/runtime/orcm_globals.h"
-#include "orcm/mca/analytics/base/base.h"
 #include "orcm/mca/cfgi/base/base.h"
 #include "orcm/mca/db/base/base.h"
 #include "orcm/mca/diag/base/base.h"
@@ -606,13 +605,6 @@ static int orcmd_init(void)
         goto error;
     }
     
-    /* setup the ANALYTICS framework */
-    if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orcm_analytics_base_framework, 0))) {
-        ORTE_ERROR_LOG(ret);
-        error = "orcm_analytics_base_open";
-        goto error;
-    }
-
     /* setup the SENSOR framework */
     if (ORTE_SUCCESS != (ret = mca_base_framework_open(&orcm_sensor_base_framework, 0))) {
         ORTE_ERROR_LOG(ret);
@@ -679,7 +671,6 @@ static void orcmd_finalize(void)
     orcm_sensor.stop(ORTE_PROC_MY_NAME->jobid);
     (void) mca_base_framework_close(&orcm_sensor_base_framework);
     (void) mca_base_framework_close(&opal_pstat_base_framework);
-    (void) mca_base_framework_close(&orcm_analytics_base_framework);
 
     if (signals_set) {
         /* Release all local signal handlers */
