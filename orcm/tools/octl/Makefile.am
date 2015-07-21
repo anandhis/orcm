@@ -37,8 +37,7 @@ octl_SOURCES = \
         queue.c \
         resource.c \
         session.c \
-        sensor.c \
-	grouping.c
+        sensor.c 
 
 # the following empty octl_LDFLAGS is used
 #  so that the octl can be compiled statically

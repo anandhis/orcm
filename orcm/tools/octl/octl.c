@@ -733,54 +733,6 @@ static int run_cmd(char *cmd) {
                 break;
         }
         break;
-    case 32: //grouping
-        rc = octl_command_to_int(cmdlist[1]);
-        if (-1 == rc) {
-            fullcmd = opal_argv_join(cmdlist, ' ');
-            fprintf(stderr, "Unknown command: %s\n", fullcmd);
-            free(fullcmd);
-            rc = ORCM_ERROR;
-            break;
-        }
-        switch (rc)
-        {
-        case 33: //load
-            if (ORCM_SUCCESS != (rc = orcm_octl_grouping_load(sz_cmdlist, cmdlist, &logro))) {
-                ORTE_ERROR_LOG(rc);
-            }
-            break;
-        case 5: //add
-            if (ORCM_SUCCESS != (rc = orcm_octl_grouping_add(sz_cmdlist, cmdlist, &logro))) {
-                ORTE_ERROR_LOG(rc);
-            }
-            break;
-        case 6: //remove
-            if (ORCM_SUCCESS != (rc = orcm_octl_grouping_remove(sz_cmdlist, cmdlist, &logro))) {
-                ORTE_ERROR_LOG(rc);
-            }
-            break;
-        case 34: //save
-            if (ORCM_SUCCESS != (rc = orcm_octl_grouping_save(sz_cmdlist, cmdlist, &logro))) {
-                ORTE_ERROR_LOG(rc);
-            }
-            break;
-        case 35: //listnode
-            if (ORCM_SUCCESS != (rc = orcm_octl_grouping_listnode(sz_cmdlist, cmdlist, &logro))) {
-                ORTE_ERROR_LOG(rc);
-            }
-            break;
-        case 36: //listtag
-            if (ORCM_SUCCESS != (rc = orcm_octl_grouping_listtag(sz_cmdlist, cmdlist, &logro))) {
-                ORTE_ERROR_LOG(rc);
-            }
-            break;
-        default:
-            fullcmd = opal_argv_join(cmdlist, ' ');
-            fprintf(stderr, "Illegal command: %s\n", fullcmd);
-            free(fullcmd);
-            break;
-        }
-        break;
     default:
         fullcmd = opal_argv_join(cmdlist, ' ');
         fprintf(stderr, "Illegal command: %s\n", fullcmd);
