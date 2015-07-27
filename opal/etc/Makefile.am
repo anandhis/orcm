@@ -33,8 +33,8 @@ install-data-local:
 	@ p="$(opal_config_files)"; \
         if test "$(opal_file_from_platform)" = "yes"; then \
 	    if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
-	    echo " $(INSTALL_DATA) $$d$$p $(DESTDIR)$(sysconfdir)/openmpi-mca-params.conf"; \
-	    $(INSTALL_DATA) $$d$$p $(DESTDIR)$(sysconfdir)/openmpi-mca-params.conf; \
+	    echo " $(INSTALL) -m 600 $$d$$p $(DESTDIR)$(sysconfdir)/openmpi-mca-params.conf"; \
+	    $(INSTALL) -m 600 $$d$$p $(DESTDIR)$(sysconfdir)/openmpi-mca-params.conf; \
         else \
             for file in $$p; do \
 	        if test -f $(DESTDIR)$(sysconfdir)/openmpi-mca-params.conf; then \
@@ -45,8 +45,8 @@ install-data-local:
 	        else \
 	            if test -f "$$file"; then d=; else d="$(srcdir)/"; fi; \
 	            f="`echo $$file | sed -e 's|^.*/||'`"; \
-	            echo " $(INSTALL_DATA) $$d$$file $(DESTDIR)$(sysconfdir)/$$f"; \
-	            $(INSTALL_DATA) $$d$$file $(DESTDIR)$(sysconfdir)/$$f; \
+	            echo " $(INSTALL) -m 600 $$d$$file $(DESTDIR)$(sysconfdir)/$$f"; \
+	            $(INSTALL) -m 600 $$d$$file $(DESTDIR)$(sysconfdir)/$$f; \
 	        fi; \
 	    done \
         fi;
