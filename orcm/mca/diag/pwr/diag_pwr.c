@@ -21,6 +21,7 @@
 #include <dirent.h>
 #endif  /* HAVE_DIRENT_H */
 #include <ctype.h>
+#include <sys/time.h>
 
 #include "opal/class/opal_list.h"
 #include "opal/dss/dss.h"
@@ -38,6 +39,7 @@
 #include "orcm/mca/sensor/base/sensor_private.h"
 
 #include "orcm/mca/diag/base/base.h"
+#include "orcm/runtime/orcm_globals.h"
 #include "diag_pwr.h"
 
 static int init(void);
@@ -339,8 +341,8 @@ static void finalize(void)
 
 /*** REMINDER: THIS CALLBACK IS EXECUTED IN THE
  * DB EVENT BASE ***/
-static void mycleanup(int dbhandle, int status,
-                      opal_list_t *kvs, void *cbdata)
+static void mycleanup(int dbhandle, int status, opal_list_t *kvs,
+                      opal_list_t *ret, void *cbdata)
 {
     OPAL_LIST_RELEASE(kvs);
 }
@@ -352,11 +354,12 @@ static void sensor_sample(opal_buffer_t *buffer, void *cbdata)
     collector_t *coll = (collector_t*)cbdata;
     opal_buffer_t *buf=NULL;
     char *hostname=NULL, *component;
-    char *sampletime;
+    struct timeval sampletime;
     int rc;
     int32_t n, ncores;
     opal_list_t *vals;
     opal_value_t *kv;
+    orcm_metric_value_t *mv;
     float fval;
     int i;
 
@@ -391,7 +394,7 @@ static void sensor_sample(opal_buffer_t *buffer, void *cbdata)
 
     /* sample time */
     n=1;
-    if (OPAL_SUCCESS != (rc = opal_dss.unpack(buf, &sampletime, &n, OPAL_STRING))) {
+    if (OPAL_SUCCESS != (rc = opal_dss.unpack(buf, &sampletime, &n, OPAL_TIMEVAL))) {
         ORTE_ERROR_LOG(rc);
         goto cleanup;
     }
@@ -405,18 +408,24 @@ static void sensor_sample(opal_buffer_t *buffer, void *cbdata)
     vals = OBJ_NEW(opal_list_t);
 
     /* start by marking this as calib data */
+    mv = OBJ_NEW(orcm_metric_value_t);
+    mv->value.key = strdup("CALIB");
+    mv->value.type = OPAL_STRING;
+    mv->value.data.string = strdup("PWR");
+    mv->units=NULL;
+    opal_list_append(vals, &mv->value.super);
+
     kv = OBJ_NEW(opal_value_t);
-    kv->key = strdup("CALIB");
+    kv->key = strdup("data_group");
     kv->type = OPAL_STRING;
-    kv->data.string = strdup("PWR");
+    kv->data.string = strdup("pwr-calib");
     opal_list_append(vals, &kv->super);
 
     /* load the sample time */
     kv = OBJ_NEW(opal_value_t);
     kv->key = strdup("ctime");
-    kv->type = OPAL_STRING;
-    kv->data.string = strdup(sampletime);
-    free(sampletime);
+    kv->type = OPAL_TIMEVAL;
+    kv->data.tv = sampletime;
     opal_list_append(vals, &kv->super);
 
     /* load the hostname */
@@ -431,37 +440,40 @@ static void sensor_sample(opal_buffer_t *buffer, void *cbdata)
     opal_list_append(vals, &kv->super);
 
     /* load the number of cpus that were running the virus */
-    kv = OBJ_NEW(opal_value_t);
-    kv->key = strdup("nactive");
-    kv->type = OPAL_INT32;
-    kv->data.int32 = coll->n_active_cores;
-    opal_list_append(vals, &kv->super);
+    mv = OBJ_NEW(orcm_metric_value_t);
+    mv->value.key = strdup("nactive");
+    mv->value.type = OPAL_INT32;
+    mv->value.data.int32 = coll->n_active_cores;
+    mv->units=NULL;
+    opal_list_append(vals, &mv->value.super);
 
     /* load the frequency */
-    kv = OBJ_NEW(opal_value_t);
-    kv->key = strdup("nactive");
-    kv->type = OPAL_FLOAT;
-    kv->data.fval = coll->freq;
-    opal_list_append(vals, &kv->super);
+    mv = OBJ_NEW(orcm_metric_value_t);
+    mv->value.key = strdup("nactive");
+    mv->value.type = OPAL_FLOAT;
+    mv->value.data.fval = coll->freq;
+    mv->units=NULL;
+    opal_list_append(vals, &mv->value.super);
 
     /* load the power reading from each cpu */
     for (i=0; i < ncores; i++) {
-        kv = OBJ_NEW(opal_value_t);
-        asprintf(&kv->key, "core%d", i);
-        kv->type = OPAL_FLOAT;
+        mv = OBJ_NEW(orcm_metric_value_t);
+        asprintf(&mv->value.key, "core%d", i);
+        mv->value.type = OPAL_FLOAT;
         n=1;
         if (OPAL_SUCCESS != (rc = opal_dss.unpack(buf, &fval, &n, OPAL_FLOAT))) {
             ORTE_ERROR_LOG(rc);
             goto cleanup;
         }
-        kv->data.fval = fval;
-        opal_list_append(vals, &kv->super);
+        mv->value.data.fval = fval;
+        mv->units=NULL;
+        opal_list_append(vals, &mv->value.super);
     }
 
     /* store it */
     if (0 <= orcm_sensor_base.dbhandle) {
         /* the database framework will release the values */
-        orcm_db.store(orcm_sensor_base.dbhandle, "pwr-calib", vals, mycleanup, NULL);
+	orcm_db.store_new(orcm_sensor_base.dbhandle, ORCM_DB_ENV_DATA, vals, NULL, mycleanup, NULL); 
     } else {
         /* cleanup the xfr storage */
         OPAL_LIST_RELEASE(vals);

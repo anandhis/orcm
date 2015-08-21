@@ -43,6 +43,7 @@
 
 #include "orcm/mca/db/db.h"
 #include "orcm/runtime/orcm_globals.h"
+#include "orcm/util/utils.h"
 
 #include "orcm/mca/sensor/base/base.h"
 #include "orcm/mca/sensor/base/sensor_private.h"
@@ -620,6 +621,8 @@ static void dmidata_inventory_log(char *hostname, opal_buffer_t *inventory_snaps
     int32_t n, rc;
     dmidata_inventory_t *newhost;
     char *freq_step_list;
+    opal_value_t *kv;
+
     n=1;
     if (OPAL_SUCCESS != (rc = opal_dss.unpack(inventory_snapshot, &topo, &n, OPAL_HWLOC_TOPO))) {
         ORTE_ERROR_LOG(rc);
@@ -640,6 +643,7 @@ static void dmidata_inventory_log(char *hostname, opal_buffer_t *inventory_snaps
 
             opal_output_verbose(5, orcm_sensor_base_framework.framework_output,
                 "Compared values match for : hwloc; Do nothing");
+            return;
         } else {
             opal_output_verbose(5, orcm_sensor_base_framework.framework_output,
                 "Value mismatch : hwloc; Notify User; Update List; Update Database");
@@ -650,19 +654,6 @@ static void dmidata_inventory_log(char *hostname, opal_buffer_t *inventory_snaps
             OPAL_LIST_RELEASE(newhost->records);
             free(newhost->freq_step_list);
             newhost->records=OBJ_NEW(opal_list_t);
-
-            /*Extract all required inventory items here */
-            extract_baseboard_inventory(topo, hostname, newhost);
-            extract_cpu_inventory(topo, hostname, newhost);
-            extract_cpu_freq_steps(freq_step_list, hostname, newhost);
-            extract_pci_inventory(topo, hostname, newhost);
-            extract_memory_inventory(topo, hostname, newhost);
-
-            /* Send the collected inventory details to the database for storage */
-            if (0 <= orcm_sensor_base.dbhandle) {
-                orcm_db.update_node_features(orcm_sensor_base.dbhandle,
-                    newhost->nodename, newhost->records, NULL, NULL);
-            }
         }
     } else { /* Node not found, Create new node and attach inventory details */
         opal_output_verbose(5, orcm_sensor_base_framework.framework_output,
@@ -672,21 +663,30 @@ static void dmidata_inventory_log(char *hostname, opal_buffer_t *inventory_snaps
         /* @VINFIX: Need to fix the bug in dss copy for OPAL_HWLOC_TOPO */
         opal_dss.copy((void**)&newhost->hwloc_topo,topo,OPAL_HWLOC_TOPO);
 
-        /*Extract all required inventory items here */
-        extract_baseboard_inventory(topo, hostname, newhost);
-        extract_cpu_inventory(topo, hostname, newhost);
-        extract_cpu_freq_steps(freq_step_list, hostname, newhost);
-        extract_pci_inventory(topo, hostname, newhost);
-        extract_memory_inventory(topo, hostname, newhost);
-
         /* Append the new node to the existing host list */
         opal_list_append(&dmidata_host_list, &newhost->super);
 
-        /* Send the collected inventory details to the database for storage */
-        if (0 <= orcm_sensor_base.dbhandle) {
-            orcm_db.update_node_features(orcm_sensor_base.dbhandle, newhost->nodename , newhost->records, 
-            NULL, NULL);
-        }
+    }
+
+    kv = orcm_util_load_opal_value("hostname", newhost->nodename, OPAL_STRING);
+    if (NULL == kv) {
+        opal_output_verbose(5, orcm_sensor_base_framework.framework_output,
+                            "Unable to allocate data");
+        return;
+    }
+    opal_list_append(newhost->records, &kv->super);
+
+    /*Extract all required inventory items here */
+    extract_baseboard_inventory(topo, hostname, newhost);
+    extract_cpu_inventory(topo, hostname, newhost);
+    extract_cpu_freq_steps(freq_step_list, hostname, newhost);
+    extract_pci_inventory(topo, hostname, newhost);
+    extract_memory_inventory(topo, hostname, newhost);
+
+    /* Send the collected inventory details to the database for storage */
+    if (0 <= orcm_sensor_base.dbhandle) {
+        orcm_db.store_new(orcm_sensor_base.dbhandle, ORCM_DB_INVENTORY_DATA,
+                          newhost->records, NULL, NULL, NULL);
     }
 }
 

@@ -36,12 +36,18 @@
 #include "orcm/mca/db/base/base.h"
 #include "db_print.h"
 
+#define DB_PRINT_BUF_SIZE 1024
+
 /* Module API functions */
 static int init(struct orcm_db_base_module_t *imod);
 static void finalize(struct orcm_db_base_module_t *imod);
 static int store(struct orcm_db_base_module_t *imod,
                  const char *primary_key,
                  opal_list_t *kvs);
+static int store_new(struct orcm_db_base_module_t *imod,
+                     orcm_db_data_type_t data_type,
+                     opal_list_t *kvs,
+                     opal_list_t *ret);
 static int record_data_samples(struct orcm_db_base_module_t *imod,
                                const char *hostname,
                                const struct timeval *time_stamp,
@@ -64,6 +70,14 @@ static int record_diag_test(struct orcm_db_base_module_t *imod,
 static void print_values(opal_list_t *values, char ***cmdargs);
 static void print_value(const opal_value_t *kv, char *tbuf, size_t size);
 static void print_time_value(const struct timeval *time, char *tbuf, size_t size);
+static void print_decode_opal_list(opal_list_t *kvs, char ***cmdargs);
+static void print_opal_value_t(opal_list_item_t *list_item, char *tbuf);
+static void print_orcm_metric_t(opal_list_item_t *list_item, char *tbuf);
+
+db_print_types_t types[] = {
+    {"opal_value_t", print_opal_value_t},
+    {"orcm_metric_value_t", print_orcm_metric_t},
+};
 
 
 mca_db_print_module_t mca_db_print_module = {
@@ -71,6 +85,7 @@ mca_db_print_module_t mca_db_print_module = {
         init,
         finalize,
         store,
+        store_new,
         record_data_samples,
         update_node_features,
         record_diag_test,
@@ -163,6 +178,74 @@ static int store(struct orcm_db_base_module_t *imod,
     opal_argv_free(cmdargs);
 
     return ORCM_SUCCESS;
+}
+
+static int store_new(struct orcm_db_base_module_t *imod,
+                      orcm_db_data_type_t data_type,
+                      opal_list_t *kvs,
+                      opal_list_t *ret)
+{
+    mca_db_print_module_t *mod = (mca_db_print_module_t*)imod;
+    char **cmdargs=NULL, *vstr;
+
+
+    /* cycle through the provided values and print them */
+    /* print the data in the following format: <key>=<value>:<units> */
+    print_decode_opal_list(kvs, &cmdargs);
+
+    vstr = opal_argv_join(cmdargs, ',');
+
+    fprintf(mod->fp, "DB request: store; data:\n%s\n", vstr);
+    free(vstr);
+    opal_argv_free(cmdargs);
+
+    return ORCM_SUCCESS;
+
+}
+
+static void print_decode_opal_list(opal_list_t *kvs, char ***cmdargs)
+{
+    opal_list_item_t *list_item = NULL;
+    unsigned int types_index;
+    char tbuf[DB_PRINT_BUF_SIZE];
+
+    OPAL_LIST_FOREACH(list_item, kvs, opal_list_item_t) {
+        for (types_index = 0; types_index < sizeof(types)/sizeof(db_print_types_t); types_index ++) {
+            if (0 == strcmp(list_item->super.obj_class->cls_name, types[types_index].name)) {
+                types[types_index].print(list_item, tbuf);
+                opal_argv_append_nosize(cmdargs, tbuf);
+            }
+        }
+    }
+}
+
+static void print_opal_value_t(opal_list_item_t *list_item, char *tbuf)
+{
+    opal_value_t *kv;
+    int len;
+
+    kv =  (opal_value_t *)list_item;
+    snprintf(tbuf, DB_PRINT_BUF_SIZE, "%s=", kv->key);
+    len = strlen(tbuf);
+
+    print_value(kv, tbuf + len, DB_PRINT_BUF_SIZE - len);
+}
+
+static void print_orcm_metric_t(opal_list_item_t *list_item, char *tbuf)
+{
+    orcm_metric_value_t *kv;
+    int len;
+
+    kv =  (orcm_metric_value_t *)list_item;
+    snprintf(tbuf, DB_PRINT_BUF_SIZE, "%s=", kv->value.key);
+    len = strlen(tbuf);
+
+    print_value(&(kv->value), tbuf + len, DB_PRINT_BUF_SIZE - len);
+
+    if (NULL != kv->units) {
+        len = strlen(tbuf);
+        snprintf(tbuf + len, DB_PRINT_BUF_SIZE - len, ":%s", kv->units);
+    }
 }
 
 static int record_data_samples(struct orcm_db_base_module_t *imod,
