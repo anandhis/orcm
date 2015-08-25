@@ -9,14 +9,12 @@
 
 #include "orcm/tools/octl/common.h"
 #include "orcm/tools/octl/octl.h"
-#include "orcm/util/logical_group.h"
 
 /******************
  * Local Functions
  ******************/
 static int orcm_octl_work(int argc, char *argv[]);
 static int run_cmd(char *cmd);
-static int octl_facility_cleanup(void);
 static void octl_print_illegal_command(char *cmd);
 static void octl_print_error(int rc);
 
@@ -68,11 +66,6 @@ main(int argc, char *argv[])
 
         if (ORCM_SUCCESS != (erri = orcm_finalize())) {
             fprintf(stderr, "Failed orcm_finalize\n");
-            break;
-        }
-
-        if (ORCM_SUCCESS != (erri = octl_facility_cleanup())) {
-            fprintf(stderr, "Failed octl facility cleanup\n");
             break;
         }
 
@@ -575,7 +568,7 @@ static int run_cmd(char *cmd)
                 break;
         }
         break;
-    case 32: //grouping
+    case 33: //Analytics
         rc = octl_command_to_int(cmdlist[1]);
         if (-1 == rc) {
             rc = ORCM_ERROR;
@@ -583,29 +576,7 @@ static int run_cmd(char *cmd)
         }
         switch (rc)
         {
-        case 5: //add
-            rc = orcm_octl_grouping_add(sz_cmdlist, cmdlist);
-            break;
-        case 6: //remove
-            rc = orcm_octl_grouping_remove(sz_cmdlist, cmdlist);
-            break;
-        case 33: //list
-            rc = orcm_octl_grouping_list(sz_cmdlist, cmdlist);
-            break;
-        default:
-            rc = ORCM_ERROR;
-            break;
-        }
-        break;
-    case 35: //Analytics
-        rc = octl_command_to_int(cmdlist[1]);
-        if (-1 == rc) {
-            rc = ORCM_ERROR;
-            break;
-        }
-        switch (rc)
-        {
-        case 36: //workflow
+        case 34: //workflow
             rc = octl_command_to_int(cmdlist[2]);
             if (-1 == rc) {
                 rc = ORCM_ERROR;
@@ -648,11 +619,6 @@ static int run_cmd(char *cmd)
     return rc;
 }
 
-static int octl_facility_cleanup(void)
-{
-    int erri = orcm_logical_group_delete();
-    return erri;
-}
 
 static void octl_print_illegal_command(char *cmd)
 {

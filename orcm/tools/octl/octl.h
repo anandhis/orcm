@@ -168,12 +168,6 @@ static orcm_cli_init_t cli_init[] = {
     // strict subcommand
     { { "power", "get", NULL }, "strict", 0, 0, "Get Strictness Policy For Frequency Settings" },
 
-    /****** logical group command ******/
-    { { NULL }, "grouping", 0, 0, "Logical Grouping Information" },
-    { { "grouping", NULL }, "add", 0, 2, "Add a tag-value pair to the groupings: add <tag> <node-regex>" },
-    { { "grouping", NULL }, "remove", 0, 2, "Remove a tag-value pair to the groupings: remove <tag> <node-regex>" },
-    { { "grouping", NULL }, "list", 0, 2, "List tag-value pair. Use * for either tag or node: list <tag> <node-regex>" },
-
     /****** Analytics workflow commands ******/
     { { NULL }, "analytics", 0, 0, "Analytics information" },
     { { "analytics", NULL }, "workflow", 0, 0, "workflow manipulation commands" },
@@ -225,11 +219,9 @@ const char *orcm_octl_commands[] = { "resource",          //0
                                      "strict",            //29
                                      "sensor",            //30
                                      "sample-rate",       //31
-                                     "grouping",          //32
-                                     "list",              //33
-                                     "quit\/Exit",        //34
-                                     "analytics",         //35
-                                     "workflow",          //36
+                                     "quit\/Exit",        //32
+                                     "analytics",         //33
+                                     "workflow",          //34
                                      "\0" };
 
 END_C_DECLS
