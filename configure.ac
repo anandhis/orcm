@@ -113,10 +113,6 @@ OPAL_SAVE_VERSION([ORCM], [Open Resilient Cluster Manager],
                   [$srcdir/VERSION],
                   [orcm/include/orcm/version.h])
 
-OPAL_SAVE_VERSION([SCON], [Scalable Overlay Network],
-                  [$srcdir/VERSION],
-                  [scon/version.h])
-
 OPAL_SAVE_VERSION([OPAL], [Open Portable Access Layer],
                   [$srcdir/VERSION],
                   [opal/include/opal/version.h])
@@ -146,9 +142,6 @@ AC_SUBST(OMPI_RELEASE_DATE)
 . $srcdir/VERSION
 # ORCM level
 AC_SUBST(liborcm_so_version)
-# SCON level
-AC_SUBST(libscon_so_version)
-AC_SUBST(libmrnetscon_so_version)
 # ORTE level
 AC_SUBST(libopen_rte_so_version)
 # OPAL level
@@ -244,10 +237,6 @@ AC_SUBST(ORCM_TOP_BUILDDIR)
 #AC_SUBST(ORCMAPI_TOP_SRCDIR)
 #AC_SUBST(ORCMAPI_TOP_BUILDDIR)
 
-SCON_TOP_SRCDIR="$OPAL_TOP_SRCDIR"
-SCON_TOP_BUILDDIR="$OPAL_TOP_BUILDDIR"
-AC_SUBST(SCON_TOP_SRCDIR)
-AC_SUBST(SCON_TOP_BUILDDIR)
 ############################################################################
 # Configuration options
 ############################################################################
@@ -1276,7 +1265,5 @@ AC_CONFIG_FILES([contrib/dist/linux/openrcm.spec])
 OPAL_CONFIG_FILES
 ORTE_CONFIG_FILES
 ORCM_CONFIG_FILES
-#ORCMAPI_CONFIG_FILES
-SCON_CONFIG_FILES
 
 AC_OUTPUT
