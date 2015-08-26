@@ -15,12 +15,12 @@
 #include "opal/dss/dss.h"
 #include "opal/threads/threads.h"
 #include "opal/util/output.h"
+#include "opal/runtime/opal_progress_threads.h"
 
 #include "orte/mca/errmgr/errmgr.h"
 #include "orte/mca/rml/rml.h"
 #include "orte/util/name_fns.h"
 
-#include "orcm/runtime/orcm_progress.h"
 
 #include "orcm/mca/analytics/base/base.h"
 #include "orcm/mca/analytics/base/analytics_private.h"
@@ -230,9 +230,7 @@ static int orcm_analytics_base_create_event_base(orcm_workflow_t *wf, char *thre
 
     wf->ev_active = true;
     if (NULL ==
-        (wf->ev_base = orcm_start_progress_thread(threadname,
-                                                  orcm_analytics_base_progress_thread_engine,
-                                                  (void *)wf))) {
+        (wf->ev_base = opal_start_progress_thread(threadname, true))) {
         wf->ev_active = false;
         free(threadname);
         return ORCM_ERR_OUT_OF_RESOURCE;
