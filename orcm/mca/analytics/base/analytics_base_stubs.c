@@ -225,12 +225,7 @@ static int orcm_analytics_base_create_event_base(orcm_workflow_t *wf, char *thre
 {
 
     wf->ev_active = true;
-<<<<<<< HEAD
-    if (NULL ==
-        (wf->ev_base = opal_start_progress_thread(threadname, true))) {
-=======
     if (NULL == (wf->ev_base = opal_start_progress_thread(threadname, true))) {
->>>>>>> 5c19ab3...   Bug fixes in Analytics framework. Bugs #1291,1292
         wf->ev_active = false;
         return ORCM_ERR_OUT_OF_RESOURCE;
     }
