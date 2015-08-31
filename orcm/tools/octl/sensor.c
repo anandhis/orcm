@@ -288,7 +288,8 @@ policy <nodelist> <sensor name> <threshold value> \
         hi_thres = false;
     } else {
         fprintf(stderr, "incorrect argument of threshold type to \"sensor set policy\"\n");
-        return ORCM_ERR_BAD_PARAM;
+        rc = ORCM_ERR_BAD_PARAM;
+        goto done;
     }
     if (OPAL_SUCCESS != (rc = opal_dss.pack(buf, &hi_thres,
                                             1, OPAL_BOOL))) {
@@ -300,7 +301,8 @@ policy <nodelist> <sensor name> <threshold value> \
         max_count = (int)strtol(argv[7], NULL, 10);
     } else {
         fprintf(stderr, "incorrect argument of max count is not an integer \n");
-        return ORCM_ERR_BAD_PARAM;
+        rc = ORCM_ERR_BAD_PARAM;
+        goto done;
     }
     if (OPAL_SUCCESS != (rc = opal_dss.pack(buf, &max_count,
                                             1, OPAL_INT))) {
@@ -312,7 +314,8 @@ policy <nodelist> <sensor name> <threshold value> \
         time_window = (int)strtol(argv[8], NULL, 10);
     } else {
         fprintf(stderr, "incorrect argument of time window is not an integer \n");
-        return ORCM_ERR_BAD_PARAM;
+        rc = ORCM_ERR_BAD_PARAM;
+        goto done;
     }
     if (OPAL_SUCCESS != (rc = opal_dss.pack(buf, &time_window,
                                             1, OPAL_INT))) {
@@ -338,7 +341,8 @@ policy <nodelist> <sensor name> <threshold value> \
         sev = ORTE_NOTIFIER_DEBUG;
     } else {
         fprintf(stderr, "incorrect argument of severity level to \"sensor set policy\"\n");
-        return ORCM_ERR_BAD_PARAM;
+        rc = ORCM_ERR_BAD_PARAM;
+        goto done;
     }
     if (OPAL_SUCCESS != (rc = opal_dss.pack(buf, &sev,
                                             1, OPAL_INT))) {
