@@ -32,14 +32,21 @@ typedef enum {
     ORCM_RAS_EXCEPTION,
     ORCM_RAS_TRANSITION,
     ORCM_RAS_SENSOR,
-    ORCM_RAS_COUNTER
+    ORCM_RAS_COUNTER,
+    /* add a marker for the end of the list so
+     * automated tools can better handle it */
+    ORCM_RAS_TYPE_MAX
 } orcm_ras_type_t;
 
 /* define an event class */
 typedef enum {
     ORCM_RAS_HARDWARE_EVENT,
     ORCM_RAS_SOFTWARE_EVENT,
-    ORCM_RAS_ENVIRO_EVENT
+    ORCM_RAS_ENVIRO_EVENT,
+    /* add a marker for the end of the list so
+     * automated tools can better handle it */
+    ORCM_RAS_CLASS_MAX
+
 } orcm_ras_class_t;
 
 /* define RAS location object */
@@ -54,13 +61,48 @@ OBJ_CLASS_DECLARATION(orcm_location_t);
 typedef enum {
     ORCM_RAS_FATAL,
     ORCM_RAS_WARNING,
-    ORCM_RAS_INFO
+    ORCM_RAS_INFO,
+    /* add a marker for the end of the list so
+     * automated tools can better handle it */
+    ORCM_RAS_SEVERITY_MAX
+
 } orcm_ras_severity_t;
+
+/* define the RAS events */
+typedef enum {
+    /* chip-level events */
+    ORCM_RAS_EVENT_CORE_TEMP_HI,
+    ORCM_RAS_EVENT_CORE_TEMP_LO,
+    ORCM_RAS_EVENT_CPU_FREQ_HI,
+    ORCM_RAS_EVENT_CPU_FREQ_LO,
+    ORCM_RAS_EVENT_CPU_FREQ_UNSETTABLE,
+    ORCM_RAS_EVENT_GOVERNOR_UNSETTABLE,
+    /* node-level events */
+    ORCM_RAS_EVENT_NODE_POWER_HI,
+    ORCM_RAS_EVENT_NODE_POWER_LO,
+    /* process-level events */
+    ORCM_RAS_EVENT_MEMORY_USE_HI,
+    ORCM_RAS_EVENT_CPU_USE_HI,
+    ORCM_RAS_EVENT_NETWORK_USE_HI,
+    ORCM_RAS_EVENT_DISK_USE_HI,
+    /* VDU events */
+    ORCM_RAS_EVENT_COOLANT_FLOW_LO,
+    ORCM_RAS_EVENT_COOLANT_PRESSURE_LO,
+    ORCM_RAS_EVENT_COOLANT_INLET_TEMP_HI,
+    ORCM_RAS_EVENT_COOLANT_INLET_TEMP_LO,
+    ORCM_RAS_EVENT_VDU_POWER_HI,
+    ORCM_RAS_EVENT_VDU_POWER_LO,
+    /* add a marker for the end of the list so
+     * automated tools can better handle it */
+    ORCM_RAS_EVENT_MAX
+
+} orcm_ras_event_t;
 
 /* define a caddy for transporting RAS event info to the evgen framework */
 typedef struct {
     opal_object_t super;
     opal_event_t ev;
+    orcm_ras_event_t id;
     orcm_ras_class_t ras_class;
     orcm_ras_type_t type;
     orcm_location_t location;

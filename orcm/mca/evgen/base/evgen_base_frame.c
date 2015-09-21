@@ -89,6 +89,49 @@ MCA_BASE_FRAMEWORK_DECLARE(orcm, evgen, "ORCM Event generation", NULL,
                            mca_evgen_base_static_components, 0);
 
 
+const char* orcm_evgen_base_print_event(orcm_ras_event_t id)
+{
+    switch(id) {
+        case ORCM_RAS_EVENT_CORE_TEMP_HI:
+            return "CORE_TEMP_HI";
+        case ORCM_RAS_EVENT_CORE_TEMP_LO:
+            return "CORE_TEMP_LO";
+        case ORCM_RAS_EVENT_CPU_FREQ_HI:
+            return "CPU_FREQ_HI";
+        case ORCM_RAS_EVENT_CPU_FREQ_LO:
+            return "CPU_FREQ_LO";
+        case ORCM_RAS_EVENT_CPU_FREQ_UNSETTABLE:
+            return "CPU_FREQ_UNSETTABLE";
+        case ORCM_RAS_EVENT_GOVERNOR_UNSETTABLE:
+            return "GOVERNOR_UNSETTABLE";
+        case ORCM_RAS_EVENT_NODE_POWER_HI:
+            return "NODE_POWER_HI";
+        case ORCM_RAS_EVENT_NODE_POWER_LO:
+            return "NODE_POWER_LO";
+        case ORCM_RAS_EVENT_MEMORY_USE_HI:
+            return "MEMORY_USE_HI";
+        case ORCM_RAS_EVENT_CPU_USE_HI:
+            return "CPU_USE_HI";
+        case ORCM_RAS_EVENT_NETWORK_USE_HI:
+            return "NETWORK_USE_HI";
+        case ORCM_RAS_EVENT_DISK_USE_HI:
+            return "DISK_USE_HI";
+        case ORCM_RAS_EVENT_COOLANT_FLOW_LO:
+            return "COOLANT_FLOW_LO";
+        case ORCM_RAS_EVENT_COOLANT_PRESSURE_LO:
+            return "COOLANT_PRESSURE_LO";
+        case ORCM_RAS_EVENT_COOLANT_INLET_TEMP_HI:
+            return "COOLANT_INLET_TEMP_HI";
+        case ORCM_RAS_EVENT_COOLANT_INLET_TEMP_LO:
+            return "COOLANT_INLET_TEMP_LO";
+        case ORCM_RAS_EVENT_VDU_POWER_HI:
+            return "VDU_POWER_HI";
+        case ORCM_RAS_EVENT_VDU_POWER_LO:
+            return "VDU_POWER_LO";
+        default:
+            return "UNKNOWN";
+    }
+}
 const char* orcm_evgen_base_print_type(orcm_ras_type_t t)
 {
     switch(t) {

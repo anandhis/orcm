@@ -34,7 +34,7 @@
 BEGIN_C_DECLS
 
 /* define a macro to be used for declaring a RAS event */
-#define ORCM_RAS_EVENT(a, b, c)                                              \
+#define ORCM_RAS_EVENT(a, b, c, d)                                           \
     do {                                                                     \
         orcm_evgen_caddy_t *_cd;                                             \
         opal_output_verbose(1, orcm_evgen_base_framework.framework_output,   \
@@ -42,9 +42,10 @@ BEGIN_C_DECLS
                             ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),              \
                             __FILE__, __LINE__);                             \
         _cd = OBJ_NEW(orcm_evgen_caddy_t);                                   \
-        _cd->type = (a);                                                     \
-        _cd->ras_class = (b);                                                \
-        _cd->severity = (c);                                                 \
+        _cd->id = (a);                                                       \
+        _cd->type = (b);                                                     \
+        _cd->ras_class = (c);                                                \
+        _cd->severity = (d);                                                 \
         opal_event_set(orcm_evgen_base.evbase, &(_cd->ev), -1,               \
                        OPAL_EV_WRITE,                                        \
                        orcm_evgen_base_event, _cd);                          \
@@ -75,6 +76,7 @@ ORCM_DECLSPEC extern orcm_evgen_base_t orcm_evgen_base;
 
 /* stub functions */
 ORCM_DECLSPEC void orcm_evgen_base_event(int sd, short args, void *cbdata);
+ORCM_DECLSPEC const char* orcm_evgen_base_print_event(orcm_ras_event_t id);
 ORCM_DECLSPEC const char* orcm_evgen_base_print_type(orcm_ras_type_t t);
 ORCM_DECLSPEC const char* orcm_evgen_base_print_class(orcm_ras_class_t c);
 ORCM_DECLSPEC const char* orcm_evgen_base_print_severity(orcm_ras_severity_t s);

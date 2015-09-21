@@ -101,8 +101,9 @@ static void finalize(void)
 
 static void sample(orcm_sensor_sampler_t *sampler)
 {
-    float prob;
+    float prob, division, check;
     char *vector, **elements;
+    orcm_ras_event_t event;
     orcm_ras_type_t type;
     orcm_ras_class_t class;
     orcm_ras_severity_t severity;
@@ -173,30 +174,28 @@ static void sample(orcm_sensor_sampler_t *sampler)
         } else {
             /* randomly generate a vector */
             prob = (double)opal_rand(&mca_sensor_evinj_component.rng_buff) / (double)UINT32_MAX;
-            if (0.75 < prob) {
-                type = ORCM_RAS_EXCEPTION;
-            } else if (0.5 < prob) {
-                type = ORCM_RAS_TRANSITION;
-            } else if (0.25 < prob) {
-                type = ORCM_RAS_SENSOR;
-            } else {
-                type = ORCM_RAS_COUNTER;
+            division = 1.0 / (float)ORCM_RAS_EVENT_MAX;
+            event = 0;
+            for (check=division; check < prob; check += division) {
+                ++event;
             }
             prob = (double)opal_rand(&mca_sensor_evinj_component.rng_buff) / (double)UINT32_MAX;
-            if (0.67 < prob) {
-                class = ORCM_RAS_HARDWARE_EVENT;
-            } else if (0.33 < prob) {
-                class = ORCM_RAS_SOFTWARE_EVENT;
-            } else {
-                class = ORCM_RAS_ENVIRO_EVENT;
+            division = 1.0 / (float)ORCM_RAS_TYPE_MAX;
+            type = 0;
+            for (check=division; check < prob; check += division) {
+                ++type;
             }
             prob = (double)opal_rand(&mca_sensor_evinj_component.rng_buff) / (double)UINT32_MAX;
-            if (0.67 < prob) {
-                severity = ORCM_RAS_FATAL;
-            } else if (0.33 < prob) {
-                severity = ORCM_RAS_WARNING;
-            } else {
-                severity = ORCM_RAS_INFO;
+            division = 1.0 / (float)ORCM_RAS_CLASS_MAX;
+            class = 0;
+            for (check=division; check < prob; check += division) {
+                ++class;
+            }
+            prob = (double)opal_rand(&mca_sensor_evinj_component.rng_buff) / (double)UINT32_MAX;
+            division = 1.0 / (float)ORCM_RAS_SEVERITY_MAX;
+            severity = 0;
+            for (check=division; check < prob; check += division) {
+                ++severity;
             }
         }
         opal_output_verbose(1, orcm_sensor_base_framework.framework_output,
@@ -204,6 +203,6 @@ static void sample(orcm_sensor_sampler_t *sampler)
                              ORTE_NAME_PRINT(ORTE_PROC_MY_NAME));
 
         /* inject it into the event generator thread */
-        ORCM_RAS_EVENT(type, class, severity);
+        ORCM_RAS_EVENT(event, type, class, severity);
     }
 }

@@ -175,6 +175,12 @@ static void generate(orcm_evgen_caddy_t *ecd)
     kv->data.string = strdup(orcm_evgen_base_print_severity(ecd->severity));
     opal_list_append(cd->list, &kv->super);
 
+    kv = OBJ_NEW(opal_value_t);
+    kv->key = strdup("ID");
+    kv->type = OPAL_STRING;
+    kv->data.string = strdup(orcm_evgen_base_print_event(ecd->id));
+    opal_list_append(cd->list, &kv->super);
+
     orcm_db.store(dbhandle, "RAS-EVENT", cd->list, cbfunc, cd);
     ORTE_WAIT_FOR_COMPLETION(cd->active);
     OBJ_RELEASE(cd);
