@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014      Intel, Inc. All rights reserved
+ * Copyright (c) 2014-2015 Intel, Inc. All rights reserved
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -182,7 +182,7 @@ static orcm_cli_init_t cli_init[] = {
     { { "analytics", "workflow", NULL }, "get", 0, 0, "list workflow: get VPID" },
 
     /* quit command */
-    { { NULL }, "quit\/exit", 0, 0, "Exit the shell" },
+    { { NULL }, "exit", 0, 0, "Exit the shell" },
 
     /* End of list */
     { { NULL }, NULL, 0, 0, NULL }
@@ -227,7 +227,7 @@ const char *orcm_octl_commands[] = { "resource",          //0
                                      "sample-rate",       //31
                                      "grouping",          //32
                                      "list",              //33
-                                     "quit\/Exit",        //34
+                                     "exit",              //34
                                      "analytics",         //35
                                      "workflow",          //36
                                      "\0" };

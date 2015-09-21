@@ -162,6 +162,7 @@ ORCM_DECLSPEC extern int orcm_debug_verbosity;
 #define ORCM_RML_TAG_SENSOR        (ORTE_RML_TAG_MAX + 11)
 
 /* define event base priorities */
+#define ORCM_ERROR_PRI OPAL_EV_ERROR_PRI
 #define ORCM_SCHED_PRI OPAL_EV_MSG_HI_PRI
 #define ORCM_INFO_PRI  OPAL_EV_INFO_HI_PRI
 

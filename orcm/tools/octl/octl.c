@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014      Intel, Inc.  All rights reserved.
+ * Copyright (c) 2014-2015 Intel, Inc.  All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -17,8 +17,6 @@
 static int orcm_octl_work(int argc, char *argv[]);
 static int run_cmd(char *cmd);
 static int octl_facility_cleanup(void);
-static void octl_print_illegal_command(char *cmd);
-static void octl_print_error(int rc);
 
 /*****************************************
  * Global Vars for Command line Arguments
@@ -173,7 +171,7 @@ static int orcm_octl_work(int argc, char *argv[])
             /* run interactive cli */
             ret = orcm_cli_get_cmd("octl", &cli, &mycmd);
             if (ORCM_SUCCESS != ret) {
-                octl_print_illegal_command(mycmd);
+                fprintf(stderr, "ERROR: Illegal command: %s\n", mycmd);
                 if (NULL != mycmd) {
                     free(mycmd);
                 }
@@ -242,7 +240,7 @@ static int run_cmd(char *cmd)
 
     rc = octl_command_to_int(cmdlist[0]);
     if (-1 == rc) {
-        octl_print_illegal_command(cmd);
+        fprintf(stderr, "ERROR: Illegal command: %s\n", cmd);
         opal_argv_free(cmdlist);
         return ORCM_ERROR;
     }
@@ -640,9 +638,9 @@ static int run_cmd(char *cmd)
     }
 
     if (ORCM_ERROR == rc) {
-        octl_print_illegal_command(cmd);
+        fprintf(stderr, "ERROR: Illegal command: %s\n", cmd);
     } else if (ORCM_SUCCESS != rc) {
-        octl_print_error(rc);
+        fprintf(stderr, "ERROR: %s\n", ORTE_ERROR_NAME(rc));
     }
     opal_argv_free(cmdlist);
     return rc;
@@ -652,26 +650,4 @@ static int octl_facility_cleanup(void)
 {
     int erri = orcm_logical_group_delete();
     return erri;
-}
-
-static void octl_print_illegal_command(char *cmd)
-{
-    if (NULL != cmd) {
-        fprintf(stderr, "\nERROR: Illegal command: %s\n", cmd);
-    }
-    return;
-}
-
-static void octl_print_error(int rc)
-{
-    char *errmsg = NULL;
-
-    if (ORCM_SUCCESS != rc) {
-        errmsg = ORTE_ERROR_NAME(rc);
-        if (NULL != errmsg) {
-            fprintf(stderr, "\nERROR: %s\n", errmsg);
-        } else {
-            fprintf(stderr, "\nERROR: Internal\n");
-        }
-    }
 }
