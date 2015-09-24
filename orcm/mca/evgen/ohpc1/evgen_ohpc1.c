@@ -42,19 +42,19 @@
 #include "orcm/util/utils.h"
 
 #include "orcm/mca/evgen/base/base.h"
-#include "orcm/mca/evgen/first/evgen_first.h"
+#include "orcm/mca/evgen/ohpc1/evgen_ohpc1.h"
 
 /* API functions */
 
-static void first_init(void);
-static void first_finalize(void);
-static void generate(orcm_evgen_caddy_t *cd);
+static void ohpc1_init(void);
+static void ohpc1_finalize(void);
+static void generate(orcm_ras_event_t *cd);
 
 /* The module struct */
 
-orcm_evgen_base_module_t orcm_evgen_first_module = {
-    first_init,
-    first_finalize,
+orcm_evgen_base_module_t orcm_evgen_ohpc1_module = {
+    ohpc1_init,
+    ohpc1_finalize,
     generate
 };
 
@@ -64,19 +64,19 @@ typedef struct {
     int status;
     int dbhandle;
     opal_list_t *list;
-} first_caddy_t;
-static void cdcon(first_caddy_t *p)
+} ohpc1_caddy_t;
+static void cdcon(ohpc1_caddy_t *p)
 {
     p->list = NULL;
     p->active = true;
 }
-static void cddes(first_caddy_t *p)
+static void cddes(ohpc1_caddy_t *p)
 {
     if (NULL != p->list) {
         OPAL_LIST_RELEASE(p->list);
     }
 }
-static OBJ_CLASS_INSTANCE(first_caddy_t,
+static OBJ_CLASS_INSTANCE(ohpc1_caddy_t,
                           opal_object_t,
                           cdcon, cddes);
 
@@ -88,9 +88,9 @@ static void cbfunc(int dbh, int status,
                    opal_list_t *in, opal_list_t *out,
                    void *cbdata)
 {
-    first_caddy_t *cd = (first_caddy_t*)cbdata;
+    ohpc1_caddy_t *cd = (ohpc1_caddy_t*)cbdata;
     OPAL_OUTPUT_VERBOSE((1, orcm_evgen_base_framework.framework_output,
-                         "%s evgen:first cbfunc for handle %d",
+                         "%s evgen:ohpc1 cbfunc for handle %d",
                          ORTE_NAME_PRINT(ORTE_PROC_MY_NAME), dbh));
 
     cd->status = status;
@@ -98,26 +98,26 @@ static void cbfunc(int dbh, int status,
     cd->active = false;
 }
 
-static void first_init(void)
+static void ohpc1_init(void)
 {
     OPAL_OUTPUT_VERBOSE((1, orcm_evgen_base_framework.framework_output,
-                         "%s evgen:first init",
+                         "%s evgen:ohpc1 init",
                          ORTE_NAME_PRINT(ORTE_PROC_MY_NAME)));
 
     return;
 }
 
-static void first_finalize(void)
+static void ohpc1_finalize(void)
 {
-    first_caddy_t *cd;
+    ohpc1_caddy_t *cd;
 
     OPAL_OUTPUT_VERBOSE((1, orcm_evgen_base_framework.framework_output,
-                         "%s evgen:first finalize",
+                         "%s evgen:ohpc1 finalize",
                          ORTE_NAME_PRINT(ORTE_PROC_MY_NAME)));
 
     if (0 <= dbhandle) {
         /* setup a caddy */
-        cd = OBJ_NEW(first_caddy_t);
+        cd = OBJ_NEW(ohpc1_caddy_t);
         orcm_db.close(dbhandle, cbfunc, cd);
         ORTE_WAIT_FOR_COMPLETION(cd->active);
         dbhandle = -1;
@@ -126,18 +126,18 @@ static void first_finalize(void)
     return;
 }
 
-static void generate(orcm_evgen_caddy_t *ecd)
+static void generate(orcm_ras_event_t *ecd)
 {
-    first_caddy_t *cd;
+    ohpc1_caddy_t *cd;
     opal_value_t *kv;
 
     OPAL_OUTPUT_VERBOSE((1, orcm_evgen_base_framework.framework_output,
-                         "%s evgen:first record event",
+                         "%s evgen:ohpc1 record event",
                          ORTE_NAME_PRINT(ORTE_PROC_MY_NAME)));
 
     if (!got_handle) {
         /* get a db handle */
-        cd = OBJ_NEW(first_caddy_t);
+        cd = OBJ_NEW(ohpc1_caddy_t);
 
         /* get a dbhandle for us */
         cd->list = OBJ_NEW(opal_list_t);
@@ -146,7 +146,7 @@ static void generate(orcm_evgen_caddy_t *ecd)
         kv->type = OPAL_STRING;
         kv->data.string = strdup("print");
         opal_list_append(cd->list, &kv->super);
-        orcm_db.open("first", cd->list, cbfunc, cd);
+        orcm_db.open("ohpc1", cd->list, cbfunc, cd);
         ORTE_WAIT_FOR_COMPLETION(cd->active);
         if (ORCM_SUCCESS == cd->status && 0 <= cd->dbhandle) {
             dbhandle = cd->dbhandle;
@@ -154,7 +154,7 @@ static void generate(orcm_evgen_caddy_t *ecd)
         }
         OBJ_RELEASE(cd);
     }
-    cd = OBJ_NEW(first_caddy_t);
+    cd = OBJ_NEW(ohpc1_caddy_t);
     cd->list = OBJ_NEW(opal_list_t);
 
     kv = OBJ_NEW(opal_value_t);
@@ -164,21 +164,15 @@ static void generate(orcm_evgen_caddy_t *ecd)
     opal_list_append(cd->list, &kv->super);
 
     kv = OBJ_NEW(opal_value_t);
-    kv->key = strdup("CLASS");
-    kv->type = OPAL_STRING;
-    kv->data.string = strdup(orcm_evgen_base_print_class(ecd->ras_class));
-    opal_list_append(cd->list, &kv->super);
-
-    kv = OBJ_NEW(opal_value_t);
     kv->key = strdup("SEVERITY");
     kv->type = OPAL_STRING;
     kv->data.string = strdup(orcm_evgen_base_print_severity(ecd->severity));
     opal_list_append(cd->list, &kv->super);
 
     kv = OBJ_NEW(opal_value_t);
-    kv->key = strdup("ID");
+    kv->key = strdup("TIME");
     kv->type = OPAL_STRING;
-    kv->data.string = strdup(orcm_evgen_base_print_event(ecd->id));
+    kv->data.string = strdup(ctime(&ecd->timestamp));
     opal_list_append(cd->list, &kv->super);
 
     orcm_db.store(dbhandle, "RAS-EVENT", cd->list, cbfunc, cd);

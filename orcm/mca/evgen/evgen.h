@@ -1,7 +1,6 @@
+/* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil -*- */
 /*
- * Copyright (c) 2009      Cisco Systems, Inc.  All rights reserved.
- * Copyright (c) 2012      Los Alamos National Security, Inc. All rights reserved.
- * Copyright (c) 2014-2015 Intel, Inc. All rights reserved.
+ * Copyright (c) 2015      Intel, Inc. All rights reserved.
  *
  * $COPYRIGHT$
  *
@@ -31,8 +30,86 @@
 
 BEGIN_C_DECLS
 
+/* expose the base verbose output for use in macros */
+extern int orcm_evgen_base_output;
+
+/* expose the event base for this framework */
+extern opal_event_base_t *orcm_evgen_evbase;
+
+/* expose the base function that will process the
+ * event declarations */
+extern void orcm_evgen_base_event(int sd, short args, void *cbdata);
+
+/* define a macro to be used for declaring a RAS event */
+#define ORCM_RAS_EVENT(a)                                                    \
+    do {                                                                     \
+        opal_output_verbose(1, orcm_evgen_base_output,                       \
+                            "%s[%s:%d] RAS EVENT: %s:%s",                    \
+                            ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),              \
+                            __FILE__, __LINE__,                              \
+                            orcm_evgen_base_print_type((a)->type),           \
+                            orcm_evgen_base_print_severity((a)->severity));  \
+        opal_event_set(orcm_evgen_evbase, &((a)->ev), -1,                    \
+                       OPAL_EV_WRITE,                                        \
+                       orcm_evgen_base_event, (a));                          \
+        opal_event_active((&(a)->ev), OPAL_EV_WRITE, 1);                     \
+    } while(0);
+
+/* provide a convenience macro for adding reporter info
+ * to an event. Input values:
+ *
+ * ev = pointer to the event (*orcm_ras_event_t)
+ * k  = the reporter key to be added
+ * d  = pointer to the data
+ * t  = OPAL data type of the data
+ */
+#define ORCM_RAS_REPORTER(ev, k, d, t)                      \
+    do {                                                    \
+        opal_value_t *_v;                                   \
+        _v = OBJ_NEW(opal_value_t);                         \
+        (_v)->key = strdup((k));                            \
+        opal_value_load(_v, (d), (t));                      \
+        opal_list_append(&(ev)->reporter, &(_v)->super);    \
+    } while(0);
+
+/* provide a convenience macro for adding description info
+ * to an event. Input values:
+ *
+ * ev = pointer to the event (*orcm_ras_event_t)
+ * k  = the description key to be added
+ * d  = pointer to the data
+ * t  = OPAL data type of the data
+ */
+#define ORCM_RAS_DESCRIPTION(ev, k, d, t)                       \
+    do {                                                        \
+        opal_value_t *_v;                                       \
+        _v = OBJ_NEW(opal_value_t);                             \
+        (_v)->key = strdup((k));                                \
+        opal_value_load(_v, (d), (t));                          \
+        opal_list_append(&(ev)->description, &(_v)->super);     \
+    } while(0);
+
+/* provide a convenience macro for adding data
+ * to an event. Input values:
+ *
+ * ev = pointer to the event (*orcm_ras_event_t)
+ * k  = the description key to be added
+ * d  = pointer to the data (can be an array object)
+ * t  = OPAL data type of the data
+ */
+#define ORCM_RAS_DATA(ev, k, d, t)                      \
+    do {                                                \
+        opal_value_t *_v;                               \
+        _v = OBJ_NEW(opal_value_t);                     \
+        (_v)->key = strdup((k));                        \
+        opal_value_load(_v, (d), (t));                  \
+        opal_list_append(&(ev)->data, &(_v)->super);    \
+    } while(0);
+
 /*
- * Component functions - all MUST be provided!
+ * Component functions - all MUST be provided! These will never be
+ * called directly, but are always accessed via the ORCM_RAS_EVENT
+ * macro defined above
  */
 
 /* initialize the module */
@@ -44,7 +121,7 @@ typedef void (*orcm_evgen_module_fini_fn_t)(void);
 /* generate a RAS event in the module's format - the module
  * is allowed to ignore the event if the incoming alert
  * is not supported in this module */
-typedef void (*orcm_evgen_module_generate_fn_t)(orcm_evgen_caddy_t *cd);
+typedef void (*orcm_evgen_module_generate_fn_t)(orcm_ras_event_t *cd);
 
 /*
  * Ver 1.0

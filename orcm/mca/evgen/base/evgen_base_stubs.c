@@ -25,7 +25,7 @@ void orcm_evgen_base_event(int sd, short args, void *cbdata)
                         ORTE_NAME_PRINT(ORTE_PROC_MY_NAME));
 
     orcm_evgen_active_module_t* active;
-    orcm_evgen_caddy_t *cd = (orcm_evgen_caddy_t*)cbdata;
+    orcm_ras_event_t *cd = (orcm_ras_event_t*)cbdata;
 
     OPAL_LIST_FOREACH(active, &orcm_evgen_base.actives, orcm_evgen_active_module_t) {
         active->module->generate(cd);

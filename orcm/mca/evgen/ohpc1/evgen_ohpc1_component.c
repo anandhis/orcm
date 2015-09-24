@@ -16,17 +16,17 @@
 #include "orte/runtime/orte_globals.h"
 
 #include "orcm/mca/evgen/evgen.h"
-#include "orcm/mca/evgen/first/evgen_first.h"
+#include "orcm/mca/evgen/ohpc1/evgen_ohpc1.h"
 
 static int component_open(void);
 static int component_close(void);
 static int component_query(mca_base_module_t **module, int *priority);
 
-orcm_evgen_base_component_t mca_evgen_first_component = {
+orcm_evgen_base_component_t mca_evgen_ohpc1_component = {
     {
         ORCM_EVGEN_BASE_VERSION_1_0_0,
         /* Component name and version */
-        .mca_component_name = "first",
+        .mca_component_name = "ohpc1",
         MCA_BASE_MAKE_VERSION(component, ORCM_MAJOR_VERSION, ORCM_MINOR_VERSION,
                               ORCM_RELEASE_VERSION),
 
@@ -55,7 +55,7 @@ static int component_close(void)
 static int component_query(mca_base_module_t **module, int *priority)
 {
     /* default, so low priority */
-    *module = (mca_base_module_t*)&orcm_evgen_first_module;
+    *module = (mca_base_module_t*)&orcm_evgen_ohpc1_module;
     *priority = 10;
     return ORCM_SUCCESS;
 }

@@ -12,7 +12,7 @@
 
 #include "orcm/mca/evgen/evgen.h"
 
-ORCM_DECLSPEC extern orcm_evgen_base_component_t mca_evgen_first_component;
-ORCM_DECLSPEC extern orcm_evgen_base_module_t orcm_evgen_first_module;
+ORCM_DECLSPEC extern orcm_evgen_base_component_t mca_evgen_ohpc1_component;
+ORCM_DECLSPEC extern orcm_evgen_base_module_t orcm_evgen_ohpc1_module;
 
 #endif /* EVGEN_PFP1_H */

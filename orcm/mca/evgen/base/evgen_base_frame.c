@@ -1,8 +1,6 @@
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil -*- */
 /*
- * Copyright (c) 2010      Cisco Systems, Inc.  All rights reserved.
- * Copyright (c) 2012-2013 Los Alamos National Security, Inc. All rights reserved.
- * Copyright (c) 2014-2015 Intel, Inc. All rights reserved.
+ * Copyright (c) 2015      Intel, Inc. All rights reserved.
  *
  * $COPYRIGHT$
  *
@@ -47,10 +45,12 @@
  * Global variables
  */
 orcm_evgen_base_t orcm_evgen_base;
+int orcm_evgen_base_output = -1;
+opal_event_base_t *orcm_evgen_evbase = NULL;
 
 static int orcm_evgen_base_close(void)
 {
-    if (NULL != orcm_evgen_base.evbase) {
+    if (NULL != orcm_evgen_evbase) {
         opal_progress_thread_finalize("evgen");
     }
 
@@ -72,16 +72,15 @@ static int orcm_evgen_base_open(mca_base_open_flag_t flags)
     OBJ_CONSTRUCT(&orcm_evgen_base.actives, opal_list_t);
 
     /* start the progress thread */
-      if (NULL == (orcm_evgen_base.evbase = opal_progress_thread_init("evgen"))) {
+      if (NULL == (orcm_evgen_evbase = opal_progress_thread_init("evgen"))) {
         return ORCM_ERROR;
     }
 
     /* Open up all available components */
-    if (OPAL_SUCCESS != (rc = mca_base_framework_components_open(&orcm_evgen_base_framework, flags))) {
-        return rc;
-    }
+    rc = mca_base_framework_components_open(&orcm_evgen_base_framework, flags);
+    orcm_evgen_base_output = orcm_evgen_base_framework.framework_output;
 
-    return OPAL_SUCCESS;
+    return rc;
 }
 
 MCA_BASE_FRAMEWORK_DECLARE(orcm, evgen, "ORCM Event generation", NULL,
@@ -89,88 +88,45 @@ MCA_BASE_FRAMEWORK_DECLARE(orcm, evgen, "ORCM Event generation", NULL,
                            mca_evgen_base_static_components, 0);
 
 
-const char* orcm_evgen_base_print_event(orcm_ras_event_t id)
-{
-    switch(id) {
-        case ORCM_RAS_EVENT_CORE_TEMP_HI:
-            return "CORE_TEMP_HI";
-        case ORCM_RAS_EVENT_CORE_TEMP_LO:
-            return "CORE_TEMP_LO";
-        case ORCM_RAS_EVENT_CPU_FREQ_HI:
-            return "CPU_FREQ_HI";
-        case ORCM_RAS_EVENT_CPU_FREQ_LO:
-            return "CPU_FREQ_LO";
-        case ORCM_RAS_EVENT_CPU_FREQ_UNSETTABLE:
-            return "CPU_FREQ_UNSETTABLE";
-        case ORCM_RAS_EVENT_GOVERNOR_UNSETTABLE:
-            return "GOVERNOR_UNSETTABLE";
-        case ORCM_RAS_EVENT_NODE_POWER_HI:
-            return "NODE_POWER_HI";
-        case ORCM_RAS_EVENT_NODE_POWER_LO:
-            return "NODE_POWER_LO";
-        case ORCM_RAS_EVENT_MEMORY_USE_HI:
-            return "MEMORY_USE_HI";
-        case ORCM_RAS_EVENT_CPU_USE_HI:
-            return "CPU_USE_HI";
-        case ORCM_RAS_EVENT_NETWORK_USE_HI:
-            return "NETWORK_USE_HI";
-        case ORCM_RAS_EVENT_DISK_USE_HI:
-            return "DISK_USE_HI";
-        case ORCM_RAS_EVENT_COOLANT_FLOW_LO:
-            return "COOLANT_FLOW_LO";
-        case ORCM_RAS_EVENT_COOLANT_PRESSURE_LO:
-            return "COOLANT_PRESSURE_LO";
-        case ORCM_RAS_EVENT_COOLANT_INLET_TEMP_HI:
-            return "COOLANT_INLET_TEMP_HI";
-        case ORCM_RAS_EVENT_COOLANT_INLET_TEMP_LO:
-            return "COOLANT_INLET_TEMP_LO";
-        case ORCM_RAS_EVENT_VDU_POWER_HI:
-            return "VDU_POWER_HI";
-        case ORCM_RAS_EVENT_VDU_POWER_LO:
-            return "VDU_POWER_LO";
-        default:
-            return "UNKNOWN";
-    }
-}
-const char* orcm_evgen_base_print_type(orcm_ras_type_t t)
+const char* orcm_evgen_base_print_type(int t)
 {
     switch(t) {
-        case ORCM_RAS_EXCEPTION:
-            return "EXCEPTION";
-        case ORCM_RAS_TRANSITION:
-            return "TRANSITION";
-        case ORCM_RAS_SENSOR:
+        case ORCM_RAS_EVENT_SENSOR:
             return "SENSOR";
-        case ORCM_RAS_COUNTER:
+        case ORCM_RAS_EVENT_EXCEPTION:
+            return "EXCEPTION";
+        case ORCM_RAS_EVENT_COUNTER:
             return "COUNTER";
+        case ORCM_RAS_EVENT_STATE_TRANSITION:
+            return "TRANSITION";
         default:
             return "UNKNOWN";
     }
 }
 
-const char* orcm_evgen_base_print_class(orcm_ras_class_t c)
-{
-    switch(c) {
-        case ORCM_RAS_HARDWARE_EVENT:
-            return "HARDWARE";
-        case ORCM_RAS_SOFTWARE_EVENT:
-            return "SOFTWARE";
-        case ORCM_RAS_ENVIRO_EVENT:
-            return "ENVIRO";
-        default:
-            return "UNKNOWN";
-    }
-}
-
-const char* orcm_evgen_base_print_severity(orcm_ras_severity_t s)
+const char* orcm_evgen_base_print_severity(int s)
 {
     switch(s) {
+        case ORCM_RAS_EMERG:
+            return "EMERGENCY";
         case ORCM_RAS_FATAL:
             return "FATAL";
+        case ORCM_RAS_ALERT:
+            return "ALERT";
+        case ORCM_RAS_CRIT:
+            return "CRITICAL";
+        case ORCM_RAS_ERROR:
+            return "ERROR";
         case ORCM_RAS_WARNING:
             return "WARNING";
+        case ORCM_RAS_NOTICE:
+            return "NOTICE";
         case ORCM_RAS_INFO:
             return "INFO";
+        case ORCM_RAS_TRACE:
+            return "TRACE";
+        case ORCM_RAS_DEBUG:
+            return "DEBUG";
         default:
             return "UNKNOWN";
     }
@@ -181,24 +137,22 @@ OBJ_CLASS_INSTANCE(orcm_evgen_active_module_t,
                    opal_list_item_t,
                    NULL, NULL);
 
-static void locon(orcm_location_t *p)
-{
-    p->hostname = NULL;
-    p->locstring = NULL;
-}
-static void lodes(orcm_location_t *p)
-{
-    if (NULL != p->hostname) {
-        free(p->hostname);
-    }
-    if (NULL != p->locstring) {
-        free(p->locstring);
-    }
-}
-OBJ_CLASS_INSTANCE(orcm_location_t,
-                   opal_object_t,
-                   locon, lodes);
 
-OBJ_CLASS_INSTANCE(orcm_evgen_caddy_t,
+static void evcon(orcm_ras_event_t *p)
+{
+    OBJ_CONSTRUCT(&p->reporter, opal_list_t);
+    p->type = ORCM_RAS_EVENT_UNKNOWN_TYPE;
+    p->timestamp = 0;
+    p->severity = ORCM_RAS_UNKNOWN;
+    OBJ_CONSTRUCT(&p->description, opal_list_t);
+    OBJ_CONSTRUCT(&p->data, opal_list_t);
+}
+static void evdes(orcm_ras_event_t *p)
+{
+    OPAL_LIST_DESTRUCT(&p->reporter);
+    OPAL_LIST_DESTRUCT(&p->description);
+    OPAL_LIST_DESTRUCT(&p->data);
+}
+OBJ_CLASS_INSTANCE(orcm_ras_event_t,
                    opal_object_t,
-                   NULL, NULL);
+                   evcon, evdes);

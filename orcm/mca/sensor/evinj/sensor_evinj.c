@@ -27,6 +27,7 @@
 #include <signal.h>
 #endif
 #include <ctype.h>
+#include <time.h>
 
 #include "opal_stdint.h"
 #include "opal/util/alfg.h"
@@ -102,11 +103,9 @@ static void finalize(void)
 static void sample(orcm_sensor_sampler_t *sampler)
 {
     float prob, division, check;
-    char *vector, **elements;
-    orcm_ras_event_t event;
-    orcm_ras_type_t type;
-    orcm_ras_class_t class;
-    orcm_ras_severity_t severity;
+    char *vector, **elements, **parts, **pieces;
+    orcm_ras_event_t *rev;
+    int i, j;
 
     OPAL_OUTPUT_VERBOSE((1, orcm_sensor_base_framework.framework_output,
                          "%s sample:evinj considering injecting something",
@@ -115,6 +114,7 @@ static void sample(orcm_sensor_sampler_t *sampler)
      /* roll the dice */
     prob = (double)opal_rand(&mca_sensor_evinj_component.rng_buff) / (double)UINT32_MAX;
     if (prob < mca_sensor_evinj_component.prob) {
+        rev = OBJ_NEW(orcm_ras_event_t);
         /* if we were given a vector file, read
          * the next vector from the file */
         if (NULL != fp) {
@@ -133,76 +133,161 @@ static void sample(orcm_sensor_sampler_t *sampler)
                     return;
                 }
             }
-            elements = opal_argv_split(vector, ':');
+            elements = opal_argv_split(vector, ';');
             free(vector);
-            if (0 == strcmp("EXCEPTION", elements[0])) {
-                type = ORCM_RAS_EXCEPTION;
-            } else if (0 == strcmp("TRANSITION", elements[0])) {
-                type = ORCM_RAS_TRANSITION;
-            } else if (0 == strcmp("SENSOR", elements[0])) {
-                type = ORCM_RAS_SENSOR;
-            } else if (0 == strcmp("COUNTER", elements[0])) {
-                type = ORCM_RAS_COUNTER;
+            i=0;
+            /* first field must contain a comma-delimited set of descriptors
+             * of the location reporting this event, each descriptor given
+             * as a colon-separated key:value pair (only string values are
+             * supported when read from a file) */
+            parts = opal_argv_split(elements[i], ',');
+            for (j=0; NULL != parts[j]; j++) {
+                pieces = opal_argv_split(parts[j], ':');
+                if (2 != opal_argv_count(pieces)) {
+                    ORTE_ERROR_LOG(ORCM_ERR_BAD_PARAM);
+                    opal_argv_free(elements);
+                    opal_argv_free(parts);
+                    opal_argv_free(pieces);
+                    OBJ_RELEASE(rev);
+                    return;
+                }
+                ORCM_RAS_REPORTER(rev, pieces[0], pieces[1], OPAL_STRING);
+                opal_argv_free(pieces);
+            }
+            opal_argv_free(parts);
+            /* next field must be the event type */
+            ++i;
+            if (0 == strcmp("EXCEPTION", elements[i])) {
+                rev->type = ORCM_RAS_EVENT_EXCEPTION;
+            } else if (0 == strcmp("TRANSITION", elements[i])) {
+                rev->type = ORCM_RAS_EVENT_STATE_TRANSITION;
+            } else if (0 == strcmp("SENSOR", elements[i])) {
+                rev->type = ORCM_RAS_EVENT_SENSOR;
+            } else if (0 == strcmp("COUNTER", elements[i])) {
+                rev->type = ORCM_RAS_EVENT_COUNTER;
             } else {
                 ORTE_ERROR_LOG(ORCM_ERR_BAD_PARAM);
                 opal_argv_free(elements);
+                OBJ_RELEASE(rev);
                 return;
             }
-            if (0 == strcmp("HARDWARE", elements[1])) {
-                class = ORCM_RAS_HARDWARE_EVENT;
-            } else if (0 == strcmp("SOFTWARE", elements[1])) {
-                class = ORCM_RAS_SOFTWARE_EVENT;
-            } else if (0 == strcmp("ENVIRO", elements[1])) {
-                class = ORCM_RAS_ENVIRO_EVENT;
+            /* next field must be the severity */
+            ++i;
+            if (0 == strcmp("EMERGENCY", elements[i])) {
+                rev->severity = ORCM_RAS_EMERG;
+            } else if (0 == strcmp("FATAL", elements[i])) {
+                rev->severity = ORCM_RAS_FATAL;
+            } else if (0 == strcmp("ALERT", elements[i])) {
+                rev->severity = ORCM_RAS_ALERT;
+            } else if (0 == strcmp("CRITICAL", elements[i])) {
+                rev->severity = ORCM_RAS_CRIT;
+            } else if (0 == strcmp("ERROR", elements[i])) {
+                rev->severity = ORCM_RAS_ERROR;
+            } else if (0 == strcmp("WARNING", elements[i])) {
+                rev->severity = ORCM_RAS_WARNING;
+            } else if (0 == strcmp("NOTICE", elements[i])) {
+                rev->severity = ORCM_RAS_NOTICE;
+            } else if (0 == strcmp("INFO", elements[i])) {
+                rev->severity = ORCM_RAS_INFO;
+            } else if (0 == strcmp("TRACE", elements[i])) {
+                rev->severity = ORCM_RAS_TRACE;
+            } else if (0 == strcmp("DEBUG", elements[i])) {
+                rev->severity = ORCM_RAS_DEBUG;
             } else {
                 ORTE_ERROR_LOG(ORCM_ERR_BAD_PARAM);
                 opal_argv_free(elements);
+                OBJ_RELEASE(rev);
                 return;
             }
-            if (0 == strcmp("FATAL", elements[2])) {
-                severity = ORCM_RAS_FATAL;
-            } else if (0 == strcmp("WARNING", elements[2])) {
-                severity = ORCM_RAS_WARNING;
-            } else if (0 == strcmp("INFO", elements[2])) {
-                severity = ORCM_RAS_INFO;
-            } else {
-                ORTE_ERROR_LOG(ORCM_ERR_BAD_PARAM);
+            /* next field is optional - if provided, it will consist
+             * of a comma-delimited set of descriptors for this
+             * event, each given as a colon-separated key:value pair
+             * (only string values are supported when read from a file) */
+            ++i;
+            if (NULL == elements[i]) {
+                /* we are done */
                 opal_argv_free(elements);
-                return;
+                goto execute;
             }
+            parts = opal_argv_split(elements[i], ',');
+            for (j=0; NULL != parts[j]; j++) {
+                pieces = opal_argv_split(parts[j], ':');
+                if (2 != opal_argv_count(pieces)) {
+                    ORTE_ERROR_LOG(ORCM_ERR_BAD_PARAM);
+                    opal_argv_free(elements);
+                    opal_argv_free(parts);
+                    opal_argv_free(pieces);
+                    OBJ_RELEASE(rev);
+                    return;
+                }
+                ORCM_RAS_DESCRIPTION(rev, pieces[0], pieces[1], OPAL_STRING);
+                opal_argv_free(pieces);
+            }
+            opal_argv_free(parts);
+             /* the final field is also optional - if provided it
+             * will consist of a comma-delimited set of data elements for this
+             * event, each given as a colon-separated key:value pair
+             * (only string values are supported when read from a file)*/
+            ++i;
+            if (NULL == elements[i]) {
+                /* we are done */
+                opal_argv_free(elements);
+                goto execute;
+            }
+            parts = opal_argv_split(elements[i], ',');
+            for (j=0; NULL != parts[j]; j++) {
+                pieces = opal_argv_split(parts[j], ':');
+                if (3 != opal_argv_count(pieces)) {
+                    ORTE_ERROR_LOG(ORCM_ERR_BAD_PARAM);
+                    opal_argv_free(elements);
+                    opal_argv_free(parts);
+                    opal_argv_free(pieces);
+                    OBJ_RELEASE(rev);
+                    return;
+                }
+                ORCM_RAS_DATA(rev, pieces[0], pieces[1], OPAL_STRING);
+                opal_argv_free(pieces);
+            }
+            opal_argv_free(parts);
             opal_argv_free(elements);
         } else {
-            /* randomly generate a vector */
+            /* just use some bogus location for test purposes */
+            ORCM_RAS_REPORTER(rev, ORCM_LOC_CLUSTER, "GRAND-SLAM", OPAL_STRING);
+            ORCM_RAS_REPORTER(rev, ORCM_LOC_ROW, "a", OPAL_STRING);
+            i = 3;
+            ORCM_RAS_REPORTER(rev, ORCM_LOC_RACK, &i, OPAL_INT);
+            ORCM_RAS_REPORTER(rev, ORCM_LOC_NODE, "a305", OPAL_STRING);
+            ORCM_RAS_REPORTER(rev, ORCM_COMPONENT_OVLYNET, ORCM_SUBCOMPONENT_PROC, OPAL_STRING);
+            /* randomly generate the event type */
             prob = (double)opal_rand(&mca_sensor_evinj_component.rng_buff) / (double)UINT32_MAX;
-            division = 1.0 / (float)ORCM_RAS_EVENT_MAX;
-            event = 0;
+            division = 1.0 / (float)(ORCM_RAS_EVENT_UNKNOWN_TYPE+1);
+            rev->type = 0;
             for (check=division; check < prob; check += division) {
-                ++event;
+                ++rev->type;
             }
+            /* randomly generate the severity */
             prob = (double)opal_rand(&mca_sensor_evinj_component.rng_buff) / (double)UINT32_MAX;
-            division = 1.0 / (float)ORCM_RAS_TYPE_MAX;
-            type = 0;
+            division = 1.0 / (float)(ORCM_RAS_UNKNOWN+1);
+            rev->severity = 0;
             for (check=division; check < prob; check += division) {
-                ++type;
+                ++rev->severity;
             }
-            prob = (double)opal_rand(&mca_sensor_evinj_component.rng_buff) / (double)UINT32_MAX;
-            division = 1.0 / (float)ORCM_RAS_CLASS_MAX;
-            class = 0;
-            for (check=division; check < prob; check += division) {
-                ++class;
-            }
-            prob = (double)opal_rand(&mca_sensor_evinj_component.rng_buff) / (double)UINT32_MAX;
-            division = 1.0 / (float)ORCM_RAS_SEVERITY_MAX;
-            severity = 0;
-            for (check=division; check < prob; check += division) {
-                ++severity;
-            }
+            /* provide some description */
+            check = 198.75;
+            ORCM_RAS_DESCRIPTION(rev, ORCM_DESC_TEMP_HI, &check, OPAL_FLOAT);
+            i = 13789;
+            ORCM_RAS_DESCRIPTION(rev, ORCM_DESC_SESSION_ID, &i, OPAL_INT);
+            /* provide some data */
+            check = 134.8;
+            ORCM_RAS_DATA(rev, "outlet avg temp", &check, OPAL_FLOAT);
         }
+
+      execute:
         opal_output_verbose(1, orcm_sensor_base_framework.framework_output,
                              "%s sample:evinj injecting RAS event",
                              ORTE_NAME_PRINT(ORTE_PROC_MY_NAME));
 
         /* inject it into the event generator thread */
-        ORCM_RAS_EVENT(event, type, class, severity);
+        ORCM_RAS_EVENT(rev);
     }
 }

@@ -1,7 +1,6 @@
+/* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil -*- */
 /*
- * Copyright (c) 2009      Cisco Systems, Inc.  All rights reserved.
- * Copyright (c) 2013      Los Alamos National Security, LLC.  All rights reserved.
- * Copyright (c) 2014-2015 Intel, Inc.  All rights reserved.
+ * Copyright (c) 2015      Intel, Inc.  All rights reserved.
  *
  * $COPYRIGHT$
  *
@@ -33,31 +32,11 @@
 
 BEGIN_C_DECLS
 
-/* define a macro to be used for declaring a RAS event */
-#define ORCM_RAS_EVENT(a, b, c, d)                                           \
-    do {                                                                     \
-        orcm_evgen_caddy_t *_cd;                                             \
-        opal_output_verbose(1, orcm_evgen_base_framework.framework_output,   \
-                            "%s RAS EVENT: %s:%d",                           \
-                            ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),              \
-                            __FILE__, __LINE__);                             \
-        _cd = OBJ_NEW(orcm_evgen_caddy_t);                                   \
-        _cd->id = (a);                                                       \
-        _cd->type = (b);                                                     \
-        _cd->ras_class = (c);                                                \
-        _cd->severity = (d);                                                 \
-        opal_event_set(orcm_evgen_base.evbase, &(_cd->ev), -1,               \
-                       OPAL_EV_WRITE,                                        \
-                       orcm_evgen_base_event, _cd);                          \
-        opal_event_active((&_cd->ev), OPAL_EV_WRITE, 1);                     \
-    } while(0);
-
 /*
  * MCA Framework
  */
 
 typedef struct {
-    opal_event_base_t *evbase;
     opal_list_t actives;
 } orcm_evgen_base_t;
 
@@ -76,10 +55,8 @@ ORCM_DECLSPEC extern orcm_evgen_base_t orcm_evgen_base;
 
 /* stub functions */
 ORCM_DECLSPEC void orcm_evgen_base_event(int sd, short args, void *cbdata);
-ORCM_DECLSPEC const char* orcm_evgen_base_print_event(orcm_ras_event_t id);
-ORCM_DECLSPEC const char* orcm_evgen_base_print_type(orcm_ras_type_t t);
-ORCM_DECLSPEC const char* orcm_evgen_base_print_class(orcm_ras_class_t c);
-ORCM_DECLSPEC const char* orcm_evgen_base_print_severity(orcm_ras_severity_t s);
+ORCM_DECLSPEC const char* orcm_evgen_base_print_type(int t);
+ORCM_DECLSPEC const char* orcm_evgen_base_print_severity(int s);
 
 END_C_DECLS
 #endif
