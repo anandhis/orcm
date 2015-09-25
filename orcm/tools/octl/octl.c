@@ -11,6 +11,11 @@
 #include "orcm/tools/octl/octl.h"
 #include "orcm/util/logical_group.h"
 
+/***
+Remove 'implicit' warnings...
+****/
+int orcm_octl_sensor_inventory_get(int command, char** argv);
+
 /******************
  * Local Functions
  ******************/
@@ -562,6 +567,9 @@ static int run_cmd(char *cmd)
                 case 31: //sample-rate
                     rc = orcm_octl_sensor_sample_rate_get(ORCM_GET_SENSOR_SAMPLE_RATE_COMMAND, cmdlist);
                     break;
+                case 37: //inventory
+                    rc = orcm_octl_sensor_inventory_get(ORCM_GET_DB_SENSOR_INVENTORY_COMMAND, cmdlist);
+                    break;
                 default:
                     rc = ORCM_ERROR;
                     break;
@@ -650,4 +658,24 @@ static int octl_facility_cleanup(void)
 {
     int erri = orcm_logical_group_finalize();
     return erri;
+}
+
+static void octl_print_illegal_command(char *cmd)
+{
+    if (NULL != cmd) {
+        fprintf(stderr, "\nERROR: Illegal command: %s\n", cmd);
+    }
+    return;
+}
+
+static void octl_print_error(int rc)
+{
+    if (ORCM_SUCCESS != rc) {
+        const char *errmsg = ORTE_ERROR_NAME(rc);
+        if (NULL != errmsg) {
+            fprintf(stdout, "\nERROR: %s\n", errmsg);
+        } else {
+            fprintf(stdout, "\nERROR: Internal\n");
+        }
+    }
 }

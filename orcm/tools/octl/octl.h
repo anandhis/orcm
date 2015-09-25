@@ -123,6 +123,8 @@ static orcm_cli_init_t cli_init[] = {
     { { "sensor", "get", NULL }, "sample-rate", 0, 2, "Get Sensor Sample Rate: get sample-rate <sensor-name> <node-name>" },
     // sensor policy subcommand
     { { "sensor", "get", NULL }, "policy", 0, 1, "Get Sensor Event Policy" },
+    // sensor inventory subcommand
+    { { "sensor", "get", NULL }, "inventory", 0, 2, "Get the current sensor inventory for a specified node: get inventory <node-name> [<filter>]" },
 
     /****** power command ******/
     { { NULL }, "power", 0, 0, "Global Power Policy" },
@@ -227,9 +229,10 @@ const char *orcm_octl_commands[] = { "resource",          //0
                                      "sample-rate",       //31
                                      "grouping",          //32
                                      "list",              //33
-                                     "exit",              //34
+                                     "quit",              //34
                                      "analytics",         //35
                                      "workflow",          //36
+                                     "inventory",         //37
                                      "\0" };
 
 END_C_DECLS
