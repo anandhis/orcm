@@ -174,25 +174,25 @@ static void sample(orcm_sensor_sampler_t *sampler)
             /* next field must be the severity */
             ++i;
             if (0 == strcmp("EMERGENCY", elements[i])) {
-                rev->severity = ORCM_RAS_EMERG;
+                rev->severity = ORCM_RAS_SEVERITY_EMERG;
             } else if (0 == strcmp("FATAL", elements[i])) {
-                rev->severity = ORCM_RAS_FATAL;
+                rev->severity = ORCM_RAS_SEVERITY_FATAL;
             } else if (0 == strcmp("ALERT", elements[i])) {
-                rev->severity = ORCM_RAS_ALERT;
+                rev->severity = ORCM_RAS_ASEVERITY_LERT;
             } else if (0 == strcmp("CRITICAL", elements[i])) {
-                rev->severity = ORCM_RAS_CRIT;
+                rev->severity = ORCM_RAS_SEVERITY_CRIT;
             } else if (0 == strcmp("ERROR", elements[i])) {
-                rev->severity = ORCM_RAS_ERROR;
+                rev->severity = ORCM_RAS_SEVERITY_ERROR;
             } else if (0 == strcmp("WARNING", elements[i])) {
-                rev->severity = ORCM_RAS_WARNING;
+                rev->severity = ORCM_RAS_SEVERITY_WARNING;
             } else if (0 == strcmp("NOTICE", elements[i])) {
-                rev->severity = ORCM_RAS_NOTICE;
+                rev->severity = ORCM_RAS_SEVERITY_NOTICE;
             } else if (0 == strcmp("INFO", elements[i])) {
-                rev->severity = ORCM_RAS_INFO;
+                rev->severity = ORCM_RAS_SEVERITY_INFO;
             } else if (0 == strcmp("TRACE", elements[i])) {
-                rev->severity = ORCM_RAS_TRACE;
+                rev->severity = ORCM_RAS_SEVERITY_TRACE;
             } else if (0 == strcmp("DEBUG", elements[i])) {
-                rev->severity = ORCM_RAS_DEBUG;
+                rev->severity = ORCM_RAS_SEVERITY_DEBUG;
             } else {
                 ORTE_ERROR_LOG(ORCM_ERR_BAD_PARAM);
                 opal_argv_free(elements);
@@ -267,7 +267,7 @@ static void sample(orcm_sensor_sampler_t *sampler)
             }
             /* randomly generate the severity */
             prob = (double)opal_rand(&mca_sensor_evinj_component.rng_buff) / (double)UINT32_MAX;
-            division = 1.0 / (float)(ORCM_RAS_UNKNOWN+1);
+            division = 1.0 / (float)(ORCM_RAS_SEVERITY_UNKNOWN+1);
             rev->severity = 0;
             for (check=division; check < prob; check += division) {
                 ++rev->severity;
