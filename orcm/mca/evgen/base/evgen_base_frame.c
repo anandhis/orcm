@@ -146,6 +146,8 @@ static void evcon(orcm_ras_event_t *p)
     p->severity = ORCM_RAS_UNKNOWN;
     OBJ_CONSTRUCT(&p->description, opal_list_t);
     OBJ_CONSTRUCT(&p->data, opal_list_t);
+    p->cbfunc = NULL;
+    p->cbdata = NULL;
 }
 static void evdes(orcm_ras_event_t *p)
 {

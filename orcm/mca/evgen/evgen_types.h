@@ -41,17 +41,17 @@ BEGIN_C_DECLS
  * that create their own components may extend these values
  * at will. Thus, evgen plugins must be prepared to deal
  * with unrecognized severity levels */
-#define ORCM_RAS_EMERG       0
-#define ORCM_RAS_FATAL       1
-#define ORCM_RAS_ALERT       2
-#define ORCM_RAS_CRIT        3
-#define ORCM_RAS_ERROR       4
-#define ORCM_RAS_WARNING     5
-#define ORCM_RAS_NOTICE      6
-#define ORCM_RAS_INFO        7
-#define ORCM_RAS_TRACE       8
-#define ORCM_RAS_DEBUG       9
-#define ORCM_RAS_UNKNOWN    10
+#define ORCM_RAS_SEVERITY_EMERG       0
+#define ORCM_RAS_SEVERITY_FATAL       1
+#define ORCM_RAS_SEVERITY_ALERT       2
+#define ORCM_RAS_SEVERITY_CRIT        3
+#define ORCM_RAS_SEVERITY_ERROR       4
+#define ORCM_RAS_SEVERITY_WARNING     5
+#define ORCM_RAS_SEVERITY_NOTICE      6
+#define ORCM_RAS_SEVERITY_INFO        7
+#define ORCM_RAS_SEVERITY_TRACE       8
+#define ORCM_RAS_SEVERITY_DEBUG       9
+#define ORCM_RAS_SEVERITY_UNKNOWN    10
 
 
 /* define the RAS event types. Note that these are the
@@ -66,6 +66,10 @@ BEGIN_C_DECLS
 #define ORCM_RAS_EVENT_STATE_TRANSITION     3
 #define ORCM_RAS_EVENT_UNKNOWN_TYPE         4
 
+/* define a callback function that will be executed
+ * once the event generator has finished with the
+ * provided orcm_ras_event_t */
+typedef void (*orcm_ras_evgen_cbfunc_t)(void *cbdata);
 
 /* define a RAS event structure - note that this is an
  * abstracted form that is intended to support multiple
@@ -120,6 +124,10 @@ typedef struct {
      * values of other sensors at the time of the event,
      * or for a window of sensor values around that time */
     opal_list_t data;
+
+    /* the callback function, if once was given */
+    orcm_ras_evgen_cbfunc_t cbfunc;
+    void *cbdata;
 
 } orcm_ras_event_t;
 OBJ_CLASS_DECLARATION(orcm_ras_event_t);
