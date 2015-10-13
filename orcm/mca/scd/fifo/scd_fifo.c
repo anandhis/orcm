@@ -1,9 +1,9 @@
 /*
- * Copyright (c) 2014-2015 Intel, Inc. All rights reserved.
+ * Copyright (c) 2014      Intel, Inc. All rights reserved.
  * $COPYRIGHT$
- *
+ * 
  * Additional copyrights may follow
- *
+ * 
  * $HEADER$
  */
 
@@ -17,23 +17,23 @@
 #include "orte/mca/rml/rml.h"
 
 #include "orcm/mca/scd/base/base.h"
-#include "scd_pmf.h"
+#include "scd_fifo.h"
 
 static int init(void);
 static void finalize(void);
 
 
-orcm_scd_base_module_t orcm_scd_pmf_module = {
+orcm_scd_base_module_t orcm_scd_fifo_module = {
     init,
     finalize
 };
 
-static void pmf_undef(int sd, short args, void *cbdata);
-static void pmf_find_queue(int sd, short args, void *cbdata);
-static void pmf_schedule(int sd, short args, void *cbdata);
-static void pmf_allocated(int sd, short args, void *cbdata);
-static void pmf_terminated(int sd, short args, void *cbdata);
-static void pmf_cancel(int sd, short args, void *cbdata);
+static void fifo_undef(int sd, short args, void *cbdata);
+static void fifo_find_queue(int sd, short args, void *cbdata);
+static void fifo_schedule(int sd, short args, void *cbdata);
+static void fifo_allocated(int sd, short args, void *cbdata);
+static void fifo_terminated(int sd, short args, void *cbdata);
+static void fifo_cancel(int sd, short args, void *cbdata);
 
 static orcm_scd_session_state_t states[] = {
     ORCM_SESSION_STATE_UNDEF,
@@ -44,12 +44,12 @@ static orcm_scd_session_state_t states[] = {
     ORCM_SESSION_STATE_CANCEL
 };
 static orcm_scd_state_cbfunc_t callbacks[] = {
-    pmf_undef,
-    pmf_find_queue,
-    pmf_schedule,
-    pmf_allocated,
-    pmf_terminated,
-    pmf_cancel
+    fifo_undef,
+    fifo_find_queue,
+    fifo_schedule,
+    fifo_allocated,
+    fifo_terminated,
+    fifo_cancel
 };
 
 static int init(void)
@@ -58,15 +58,15 @@ static int init(void)
     int num_states;
 
     OPAL_OUTPUT_VERBOSE((5, orcm_scd_base_framework.framework_output,
-                         "%s scd:pmf:init",
+                         "%s scd:fifo:init",
                          ORTE_NAME_PRINT(ORTE_PROC_MY_NAME)));
-
+    
     /* start the receive */
     if (ORCM_SUCCESS != (rc = orcm_scd_base_comm_start())) {
         ORTE_ERROR_LOG(rc);
         return rc;
     }
-
+    
     /* initialize the resource management service */
     scd_base_rm_init();
 
@@ -88,14 +88,14 @@ static int init(void)
 static void finalize(void)
 {
     OPAL_OUTPUT_VERBOSE((5, orcm_scd_base_framework.framework_output,
-                         "%s scd:pmf:finalize",
+                         "%s scd:fifo:finalize",
                          ORTE_NAME_PRINT(ORTE_PROC_MY_NAME)));
-
+    
     orcm_scd_base_comm_stop();
 }
 
 
-static void pmf_undef(int sd, short args, void *cbdata)
+static void fifo_undef(int sd, short args, void *cbdata)
 {
     orcm_session_caddy_t *caddy = (orcm_session_caddy_t*)cbdata;
     /* this isn't defined - so just report the error */
@@ -104,7 +104,7 @@ static void pmf_undef(int sd, short args, void *cbdata)
     OBJ_RELEASE(caddy);
 }
 
-static void pmf_find_queue(int sd, short args, void *cbdata)
+static void fifo_find_queue(int sd, short args, void *cbdata)
 {
     orcm_session_caddy_t *caddy = (orcm_session_caddy_t*)cbdata;
     orcm_queue_t *q;
@@ -114,7 +114,7 @@ static void pmf_find_queue(int sd, short args, void *cbdata)
     if (caddy->session->alloc->min_nodes >
         (orcm_scd_base.nodes.size - orcm_scd_base.nodes.number_free)) {
         OPAL_OUTPUT_VERBOSE((5, orcm_scd_base_framework.framework_output,
-                             "%s scd:pmf:find_queue - not enough nodes for session %i\n",
+                             "%s scd:fifo:find_queue - not enough nodes for session %i\n",
                              ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
                              caddy->session->id));
 
@@ -126,7 +126,7 @@ static void pmf_find_queue(int sd, short args, void *cbdata)
                 ORCM_ACTIVATE_SCD_STATE(caddy->session, ORCM_SESSION_STATE_SCHEDULE);
 
                 OPAL_OUTPUT_VERBOSE((5, orcm_scd_base_framework.framework_output,
-                                     "%s scd:pmf:find_queue %s\n",
+                                     "%s scd:fifo:find_queue %s\n",
                                      ORTE_NAME_PRINT(ORTE_PROC_MY_NAME), q->name));
                 break;
             }
@@ -150,7 +150,7 @@ static void pmf_find_queue(int sd, short args, void *cbdata)
     }
 
     /* cycle across the queues and select the one that best
-     * fits this session request.  for PMF, its just the
+     * fits this session request.  for FIFO, its just the 
      * default always.
      */
 
@@ -161,7 +161,7 @@ static void pmf_find_queue(int sd, short args, void *cbdata)
             ORCM_ACTIVATE_SCD_STATE(caddy->session, ORCM_SESSION_STATE_SCHEDULE);
 
             OPAL_OUTPUT_VERBOSE((5, orcm_scd_base_framework.framework_output,
-                                 "%s scd:pmf:find_queue %s\n",
+                                 "%s scd:fifo:find_queue %s\n",
                                  ORTE_NAME_PRINT(ORTE_PROC_MY_NAME), q->name));
             break;
         }
@@ -170,7 +170,7 @@ static void pmf_find_queue(int sd, short args, void *cbdata)
     OBJ_RELEASE(caddy);
 }
 
-static void pmf_schedule(int sd, short args, void *cbdata)
+static void fifo_schedule(int sd, short args, void *cbdata)
 {
     orcm_session_caddy_t *caddy = (orcm_session_caddy_t*)cbdata;
     orcm_session_t *sessionptr;
@@ -188,17 +188,17 @@ static void pmf_schedule(int sd, short args, void *cbdata)
             /* if its empty, we are done */
             if (opal_list_is_empty(&q->sessions)) {
                 OPAL_OUTPUT_VERBOSE((5, orcm_scd_base_framework.framework_output,
-                                     "%s scd:pmf:schedule - no (more) sessions found on queue\n",
+                                     "%s scd:fifo:schedule - no (more) sessions found on queue\n",
                                      ORTE_NAME_PRINT(ORTE_PROC_MY_NAME)));
                 return;
             }
-            /* as per PMF rules, get the first session on the queue */
+            /* as per FIFO rules, get the first session on the queue */
             sessionptr = (orcm_session_t*)opal_list_remove_first(&q->sessions);
             if (NULL == sessionptr) {
-                /* should never be able to get here, this function should only be called after sessions
+                /* should never be able to get here, this function should only be called after sessions 
                  * are already placed on a queue */
                 OPAL_OUTPUT_VERBOSE((5, orcm_scd_base_framework.framework_output,
-                                     "%s scd:pmf:schedule - no sessions found on queue when there should have been!\n",
+                                     "%s scd:fifo:schedule - no sessions found on queue when there should have been!\n",
                                      ORTE_NAME_PRINT(ORTE_PROC_MY_NAME)));
                 OBJ_RELEASE(caddy);
                 return;
@@ -223,12 +223,12 @@ static void pmf_schedule(int sd, short args, void *cbdata)
             /* if there are enough nodes to meet job requirement, allocate them */
             if (sessionptr->alloc->min_nodes <= free_nodes) {
                 OPAL_OUTPUT_VERBOSE((5, orcm_scd_base_framework.framework_output,
-                                     "%s scd:pmf:schedule - found enough nodes, activiating session\n",
+                                     "%s scd:fifo:schedule - found enough nodes, activiating session\n",
                                      ORTE_NAME_PRINT(ORTE_PROC_MY_NAME)));
                 ORCM_ACTIVATE_RM_STATE(sessionptr, ORCM_SESSION_STATE_REQ);
             } else {
                 OPAL_OUTPUT_VERBOSE((5, orcm_scd_base_framework.framework_output,
-                                     "%s scd:pmf:schedule - (session: %d) not enough free nodes (required: %d found: %d), re-queueing session\n",
+                                     "%s scd:fifo:schedule - (session: %d) not enough free nodes (required: %d found: %d), re-queueing session\n",
                                      ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
                                      sessionptr->id,
                                      sessionptr->alloc->min_nodes,
@@ -241,7 +241,7 @@ static void pmf_schedule(int sd, short args, void *cbdata)
     OBJ_RELEASE(caddy);
 }
 
-static void pmf_allocated(int sd, short args, void *cbdata)
+static void fifo_allocated(int sd, short args, void *cbdata)
 {
     orcm_session_caddy_t *caddy = (orcm_session_caddy_t*)cbdata;
     char **nodenames = NULL;
@@ -250,8 +250,8 @@ static void pmf_allocated(int sd, short args, void *cbdata)
     orcm_queue_t *q;
 
     OPAL_OUTPUT_VERBOSE((5, orcm_scd_base_framework.framework_output,
-                         "%s scd:pmf:allocated - (session: %d) got nodelist %s\n",
-                         ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
+                         "%s scd:fifo:allocated - (session: %d) got nodelist %s\n",
+                         ORTE_NAME_PRINT(ORTE_PROC_MY_NAME), 
                          caddy->session->id,
                          caddy->session->alloc->nodes));
 
@@ -266,7 +266,7 @@ static void pmf_allocated(int sd, short args, void *cbdata)
 
     if (0 == strcmp(caddy->session->alloc->nodes, "ERROR")) {
         OPAL_OUTPUT_VERBOSE((5, orcm_scd_base_framework.framework_output,
-                             "%s scd:pmf:allocated - (session: %d) nodelist came back as ERROR\n",
+                             "%s scd:fifo:allocated - (session: %d) nodelist came back as ERROR\n",
                              ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
                              caddy->session->id));
         goto ERROR;
@@ -281,7 +281,7 @@ static void pmf_allocated(int sd, short args, void *cbdata)
                                             &nodenames))) {
         ORTE_ERROR_LOG(rc);
         OPAL_OUTPUT_VERBOSE((5, orcm_scd_base_framework.framework_output,
-                             "%s scd:pmf:allocated - (session: %d) could not extract nodelist\n",
+                             "%s scd:fifo:allocated - (session: %d) could not extract nodelist\n",
                              ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
                              caddy->session->id));
         goto ERROR;
@@ -291,16 +291,16 @@ static void pmf_allocated(int sd, short args, void *cbdata)
     if (num_nodes != caddy->session->alloc->min_nodes) {
         /* what happened? we didn't get all of the nodes we needed? */
         OPAL_OUTPUT_VERBOSE((5, orcm_scd_base_framework.framework_output,
-                             "%s scd:pmf:allocated - (session: %d) nodelist did not contain same number of nodes as requested, expected: %i got: %i\n",
-                             ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
+                             "%s scd:fifo:allocated - (session: %d) nodelist did not contain same number of nodes as requested, expected: %i got: %i\n",
+                             ORTE_NAME_PRINT(ORTE_PROC_MY_NAME), 
                              caddy->session->id,
                              caddy->session->alloc->min_nodes,
                              num_nodes));
         goto ERROR;
     }
 
-    /* node array should be indexed by node num,
-     * if we change to lookup by index that would be faster
+    /* node array should be indexed by node num, 
+     * if we change to lookup by index that would be faster 
      */
     for (i = 0; i < num_nodes; i++) {
         for (j = 0; j < orcm_scd_base.nodes.size; j++) {
@@ -344,7 +344,7 @@ ERROR:
     }
 }
 
-static void pmf_terminated(int sd, short args, void *cbdata)
+static void fifo_terminated(int sd, short args, void *cbdata)
 {
     orcm_session_caddy_t *caddy = (orcm_session_caddy_t*)cbdata;
     int rc, i, j, num_nodes;
@@ -360,7 +360,7 @@ static void pmf_terminated(int sd, short args, void *cbdata)
                                             &nodenames))) {
         ORTE_ERROR_LOG(rc);
         OPAL_OUTPUT_VERBOSE((5, orcm_scd_base_framework.framework_output,
-                             "%s scd:pmf:terminated - (session: %d) could not extract nodelist\n",
+                             "%s scd:fifo:terminated - (session: %d) could not extract nodelist\n",
                              ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
                              caddy->session->id));
 
@@ -373,8 +373,8 @@ static void pmf_terminated(int sd, short args, void *cbdata)
 
     num_nodes = opal_argv_count(nodenames);
 
-    /* node array should be indexed by node num,
-     * if we change to lookup by index that would be faster
+    /* node array should be indexed by node num, 
+     * if we change to lookup by index that would be faster 
      */
     for (i = 0; i < num_nodes; i++) {
         for (j = 0; j < orcm_scd_base.nodes.size; j++) {
@@ -407,7 +407,7 @@ static void pmf_terminated(int sd, short args, void *cbdata)
     }
 }
 
-static void pmf_cancel(int sd, short args, void *cbdata)
+static void fifo_cancel(int sd, short args, void *cbdata)
 {
     orcm_session_caddy_t *caddy = (orcm_session_caddy_t*)cbdata;
     orcm_queue_t *q;

@@ -107,26 +107,28 @@ const char* orcm_evgen_base_print_type(int t)
 const char* orcm_evgen_base_print_severity(int s)
 {
     switch(s) {
-        case ORCM_RAS_EMERG:
+        case ORCM_RAS_SEVERITY_EMERG:
             return "EMERGENCY";
-        case ORCM_RAS_FATAL:
+        case ORCM_RAS_SEVERITY_FATAL:
             return "FATAL";
-        case ORCM_RAS_ALERT:
+        case ORCM_RAS_SEVERITY_ALERT:
             return "ALERT";
-        case ORCM_RAS_CRIT:
+        case ORCM_RAS_SEVERITY_CRIT:
             return "CRITICAL";
-        case ORCM_RAS_ERROR:
+        case ORCM_RAS_SEVERITY_ERROR:
             return "ERROR";
-        case ORCM_RAS_WARNING:
+        case ORCM_RAS_SEVERITY_WARNING:
             return "WARNING";
-        case ORCM_RAS_NOTICE:
+        case ORCM_RAS_SEVERITY_NOTICE:
             return "NOTICE";
-        case ORCM_RAS_INFO:
+        case ORCM_RAS_SEVERITY_INFO:
             return "INFO";
-        case ORCM_RAS_TRACE:
+        case ORCM_RAS_SEVERITY_TRACE:
             return "TRACE";
-        case ORCM_RAS_DEBUG:
+        case ORCM_RAS_SEVERITY_DEBUG:
             return "DEBUG";
+        case ORCM_RAS_SEVERITY_UNKNOWN:
+            return "UNKNOWN";
         default:
             return "UNKNOWN";
     }
@@ -143,7 +145,7 @@ static void evcon(orcm_ras_event_t *p)
     OBJ_CONSTRUCT(&p->reporter, opal_list_t);
     p->type = ORCM_RAS_EVENT_UNKNOWN_TYPE;
     p->timestamp = 0;
-    p->severity = ORCM_RAS_UNKNOWN;
+    p->severity = ORCM_RAS_SEVERITY_UNKNOWN;
     OBJ_CONSTRUCT(&p->description, opal_list_t);
     OBJ_CONSTRUCT(&p->data, opal_list_t);
     p->cbfunc = NULL;
