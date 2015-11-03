@@ -80,9 +80,9 @@ static bool orcm_analytics_base_db_check(orcm_workflow_step_t *wf_step)
         if (NULL == attribute) {
             break;
         }
-        if (0 == strncmp(attribute->key, db_attribute_key, strlen(attribute->key))) {
+        if (0 == strncmp(attribute->key, db_attribute_key, strlen(attribute->key) + 1)) {
             if (0 == strncmp(attribute->data.string, db_attribute_value_check,
-                strlen(attribute->data.string))) {
+                strlen(attribute->data.string) + 1)) {
                 load_to_db = true;
             }
             break;
@@ -153,7 +153,7 @@ static int orcm_analytics_db_fill_data(opal_list_t *db_input,
                                        opal_value_array_t *data_results, int data_size)
 {
     orcm_analytics_value_t *data_item = NULL;
-    orcm_metric_value_t *analytics_metric = NULL;
+    orcm_value_t *analytics_metric = NULL;
     int index = -1, rc = -1;
 
     /* fill the actual data results to the db input */
@@ -163,7 +163,7 @@ static int orcm_analytics_db_fill_data(opal_list_t *db_input,
             OPAL_LIST_RELEASE(db_input);
             return ORCM_ERR_DATA_VALUE_NOT_FOUND;
         }
-        analytics_metric = OBJ_NEW(orcm_metric_value_t);
+        analytics_metric = OBJ_NEW(orcm_value_t);
         if (NULL == analytics_metric) {
             return ORCM_ERR_OUT_OF_RESOURCE;
         }

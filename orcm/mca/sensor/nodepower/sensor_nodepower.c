@@ -62,6 +62,8 @@ static void nodepower_log(opal_buffer_t *buf);
 static int call_readein(node_power_data *, int, unsigned char);
 static void nodepower_set_sample_rate(int sample_rate);
 static void nodepower_get_sample_rate(int *sample_rate);
+static void nodepower_inventory_collect(opal_buffer_t *inventory_snapshot);
+static void nodepower_inventory_log(char *hostname, opal_buffer_t *inventory_snapshot);
 
 /* instantiate the module */
 orcm_sensor_base_module_t orcm_sensor_nodepower_module = {
@@ -71,8 +73,8 @@ orcm_sensor_base_module_t orcm_sensor_nodepower_module = {
     stop,
     nodepower_sample,
     nodepower_log,
-    NULL,
-    NULL,
+    nodepower_inventory_collect,
+    nodepower_inventory_log,
     nodepower_set_sample_rate,
     nodepower_get_sample_rate
 };
@@ -251,7 +253,11 @@ static void start(orte_jobid_t jobid)
         opal_event_evtimer_set(orcm_sensor_nodepower.ev_base, &nodepower_sampler->ev,
                                perthread_nodepower_sample, nodepower_sampler);
         opal_event_evtimer_add(&nodepower_sampler->ev, &nodepower_sampler->rate);
+    }else{
+	 mca_sensor_nodepower_component.sample_rate = orcm_sensor_base.sample_rate;
+
     }
+
     return;
 }
 
@@ -521,7 +527,7 @@ static void nodepower_log(opal_buffer_t *sample)
     int sensor_not_avail=0;
     struct timeval tv_curr;
     struct tm *time_info;
-    orcm_metric_value_t *sensor_metric;
+    orcm_value_t *sensor_metric;
 
     float node_power_cur;
     char time_str[40];
@@ -602,7 +608,7 @@ static void nodepower_log(opal_buffer_t *sample)
     kv->data.string = strdup("nodepower");
     opal_list_append(vals, &kv->super);
 
-    sensor_metric = OBJ_NEW(orcm_metric_value_t);
+    sensor_metric = OBJ_NEW(orcm_value_t);
     if (NULL == sensor_metric) {
         ORTE_ERROR_LOG(OPAL_ERR_OUT_OF_RESOURCE);
         return;
@@ -648,9 +654,7 @@ static void nodepower_get_sample_rate(int *sample_rate)
 {
     if (NULL != sample_rate) {
     /* check if nodepower sample rate is provided for this*/
-        if (mca_sensor_nodepower_component.use_progress_thread) {
             *sample_rate = mca_sensor_nodepower_component.sample_rate;
-        }
     }
     return;
 }
@@ -704,4 +708,100 @@ static void generate_test_vector(opal_buffer_t *v)
     opal_output_verbose(5,orcm_sensor_base_framework.framework_output,
             "%s sensor:nodepower: Power value of test vector is %f Watts",
             ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),test_power);
+}
+
+static void nodepower_inventory_collect(opal_buffer_t *inventory_snapshot)
+{
+    unsigned int tot_items = 2;
+    char *comp = strdup("nodepower");
+    int rc = OPAL_SUCCESS;
+
+    if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &comp, 1, OPAL_STRING))) {
+        ORTE_ERROR_LOG(rc);
+        free(comp);
+        return;
+    }
+    free(comp);
+
+    if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &tot_items, 1, OPAL_UINT))) {
+        ORTE_ERROR_LOG(rc);
+        return;
+    }
+
+    /* store our hostname */
+    comp = strdup("hostname");
+    if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &comp, 1, OPAL_STRING))) {
+        ORTE_ERROR_LOG(rc);
+        free(comp);
+        return;
+    }
+    free(comp);
+    if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &orte_process_info.nodename, 1, OPAL_STRING))) {
+        ORTE_ERROR_LOG(rc);
+        return;
+    }
+    comp = strdup("sensor_nodepower_1");
+    if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &comp, 1, OPAL_STRING))) {
+        ORTE_ERROR_LOG(rc);
+        free(comp);
+        return;
+    }
+    free(comp);
+    comp = strdup("nodepower");
+    if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &comp, 1, OPAL_STRING))) {
+        ORTE_ERROR_LOG(rc);
+        free(comp);
+        return;
+    }
+    free(comp);
+}
+
+static void my_inventory_log_cleanup(int dbhandle, int status, opal_list_t *kvs, opal_list_t *output, void *cbdata)
+{
+    OBJ_RELEASE(kvs);
+}
+
+static void nodepower_inventory_log(char *hostname, opal_buffer_t *inventory_snapshot)
+{
+    unsigned int tot_items = 0;
+    int n = 1;
+    opal_list_t *records = NULL;
+    int rc = OPAL_SUCCESS;
+
+    if (OPAL_SUCCESS != (rc = opal_dss.unpack(inventory_snapshot, &tot_items, &n, OPAL_UINT))) {
+        ORTE_ERROR_LOG(rc);
+        return;
+    }
+    records = OBJ_NEW(opal_list_t);
+    while(tot_items > 0) {
+        char *inv = NULL;
+        char *inv_val = NULL;
+        orcm_value_t *mkv = NULL;
+
+        n=1;
+        if (OPAL_SUCCESS != (rc = opal_dss.unpack(inventory_snapshot, &inv, &n, OPAL_STRING))) {
+            ORTE_ERROR_LOG(rc);
+            OBJ_RELEASE(records);
+            return;
+        }
+        n=1;
+        if (OPAL_SUCCESS != (rc = opal_dss.unpack(inventory_snapshot, &inv_val, &n, OPAL_STRING))) {
+            ORTE_ERROR_LOG(rc);
+            OBJ_RELEASE(records);
+            return;
+        }
+
+        mkv = OBJ_NEW(orcm_value_t);
+        mkv->value.key = inv;
+        mkv->value.type = OPAL_STRING;
+        mkv->value.data.string = inv_val;
+        opal_list_append(records, (opal_list_item_t*)mkv);
+
+        --tot_items;
+    }
+    if (0 <= orcm_sensor_base.dbhandle) {
+        orcm_db.store_new(orcm_sensor_base.dbhandle, ORCM_DB_INVENTORY_DATA, records, NULL, my_inventory_log_cleanup, NULL);
+    } else {
+        my_inventory_log_cleanup(-1, -1, records, NULL, NULL);
+    }
 }

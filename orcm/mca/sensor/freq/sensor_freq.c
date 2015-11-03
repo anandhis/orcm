@@ -62,6 +62,8 @@ static void collect_sample(orcm_sensor_sampler_t *sampler);
 static void freq_log(opal_buffer_t *buf);
 static void freq_set_sample_rate(int sample_rate);
 static void freq_get_sample_rate(int *sample_rate);
+static void freq_inventory_collect(opal_buffer_t *inventory_snapshot);
+static void freq_inventory_log(char *hostname, opal_buffer_t *inventory_snapshot);
 
 /* instantiate the module */
 orcm_sensor_base_module_t orcm_sensor_freq_module = {
@@ -71,8 +73,8 @@ orcm_sensor_base_module_t orcm_sensor_freq_module = {
     stop,
     freq_sample,
     freq_log,
-    NULL,
-    NULL,
+    freq_inventory_collect,
+    freq_inventory_log,
     freq_set_sample_rate,
     freq_get_sample_rate
 };
@@ -675,7 +677,11 @@ static void start(orte_jobid_t jobid)
         opal_event_evtimer_set(orcm_sensor_freq.ev_base, &freq_sampler->ev,
                                perthread_freq_sample, freq_sampler);
         opal_event_evtimer_add(&freq_sampler->ev, &freq_sampler->rate);
+    }else{
+	 mca_sensor_freq_component.sample_rate = orcm_sensor_base.sample_rate;
+
     }
+
     return;
 }
 
@@ -930,7 +936,7 @@ static void freq_log(opal_buffer_t *sample)
     unsigned int pstate_count = 0, pstate_value = 0;
     char *pstate_name;
     opal_value_array_t *analytics_sample_array = NULL;
-    orcm_metric_value_t *sensor_metric;
+    orcm_value_t *sensor_metric;
 
     if (!log_enabled) {
         return;
@@ -994,7 +1000,7 @@ static void freq_log(opal_buffer_t *sample)
     opal_list_append(vals, &kv->super);
 
     for (i=0; i < ncores; i++) {
-        sensor_metric = OBJ_NEW(orcm_metric_value_t);
+        sensor_metric = OBJ_NEW(orcm_value_t);
         if (NULL == sensor_metric) {
             ORTE_ERROR_LOG(OPAL_ERR_OUT_OF_RESOURCE);
             goto cleanup;
@@ -1092,7 +1098,7 @@ static void freq_log(opal_buffer_t *sample)
         opal_output_verbose(3, orcm_sensor_base_framework.framework_output,
                             "%s : %d",pstate_name, pstate_value);
 
-        sensor_metric = OBJ_NEW(orcm_metric_value_t);
+        sensor_metric = OBJ_NEW(orcm_value_t);
         if (NULL == sensor_metric) {
             ORTE_ERROR_LOG(OPAL_ERR_OUT_OF_RESOURCE);
             goto cleanup;
@@ -1146,9 +1152,7 @@ static void freq_get_sample_rate(int *sample_rate)
 {
     if (NULL != sample_rate) {
     /* check if freq sample rate is provided for this*/
-        if (mca_sensor_freq_component.use_progress_thread) {
             *sample_rate = mca_sensor_freq_component.sample_rate;
-        }
     }
     return;
 }
@@ -1230,4 +1234,145 @@ static void generate_test_vector(opal_buffer_t *v)
     opal_output_verbose(5,orcm_sensor_base_framework.framework_output,
         "%s sensor:freq: Size of test vector is %d",
         ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),ncores);
+}
+
+static void generate_test_inv_data(opal_buffer_t *inventory_snapshot)
+{
+    unsigned int tot_items = 20;
+    unsigned int i = 0;
+    char *comp = strdup("freq");
+    int rc = OPAL_SUCCESS;
+
+    if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &comp, 1, OPAL_STRING))) {
+        ORTE_ERROR_LOG(rc);
+        free(comp);
+        return;
+    }
+    free(comp);
+    if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &tot_items, 1, OPAL_UINT))) {
+        ORTE_ERROR_LOG(rc);
+        return;
+    }
+    for(i = 0; i < tot_items; ++i)
+    {
+        asprintf(&comp, "sensor_freq_%d", i+1);
+        if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &comp, 1, OPAL_STRING))) {
+            ORTE_ERROR_LOG(rc);
+            free(comp);
+            return;
+        }
+        free(comp);
+        asprintf(&comp, "Core Freq %d", i);
+        if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &comp, 1, OPAL_STRING))) {
+            ORTE_ERROR_LOG(rc);
+            free(comp);
+            return;
+        }
+        free(comp);
+    }
+}
+
+static void freq_inventory_collect(opal_buffer_t *inventory_snapshot)
+{
+    if(mca_sensor_freq_component.test) {
+        generate_test_inv_data(inventory_snapshot);
+    } else {
+        unsigned int tot_items = (unsigned int)opal_list_get_size(&tracking) + 1; /* include "hostname"/nodename pair */
+        unsigned int i = 0;
+        char *comp = strdup("freq");
+        int rc = OPAL_SUCCESS;
+
+        if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &comp, 1, OPAL_STRING))) {
+            ORTE_ERROR_LOG(rc);
+            free(comp);
+            return;
+        }
+        free(comp);
+
+        if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &tot_items, 1, OPAL_UINT))) {
+            ORTE_ERROR_LOG(rc);
+            return;
+        }
+        --tot_items; /* adjust back for extra "hostname"/nodename pair */
+
+        /* store our hostname */
+        comp = strdup("hostname");
+        if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &comp, 1, OPAL_STRING))) {
+            ORTE_ERROR_LOG(rc);
+            free(comp);
+            return;
+        }
+        free(comp);
+        if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &orte_process_info.nodename, 1, OPAL_STRING))) {
+            ORTE_ERROR_LOG(rc);
+            return;
+        }
+
+        for(i = 0; i < tot_items; ++i) {
+            asprintf(&comp, "sensor_freq_%d", i+1);
+            if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &comp, 1, OPAL_STRING))) {
+                ORTE_ERROR_LOG(rc);
+                free(comp);
+                return;
+            }
+            free(comp);
+            asprintf(&comp, "core%d", i);
+            if (OPAL_SUCCESS != (rc = opal_dss.pack(inventory_snapshot, &comp, 1, OPAL_STRING))) {
+                ORTE_ERROR_LOG(rc);
+                free(comp);
+                return;
+            }
+            free(comp);
+        }
+    }
+}
+
+static void my_inventory_log_cleanup(int dbhandle, int status, opal_list_t *kvs, opal_list_t *output, void *cbdata)
+{
+    OBJ_RELEASE(kvs);
+}
+
+static void freq_inventory_log(char *hostname, opal_buffer_t *inventory_snapshot)
+{
+    unsigned int tot_items = 0;
+    int n = 1;
+    opal_list_t *records = NULL;
+    int rc = OPAL_SUCCESS;
+
+    if (OPAL_SUCCESS != (rc = opal_dss.unpack(inventory_snapshot, &tot_items, &n, OPAL_UINT))) {
+        ORTE_ERROR_LOG(rc);
+        return;
+    }
+    records = OBJ_NEW(opal_list_t);
+    while(tot_items > 0) {
+        char *inv = NULL;
+        char *inv_val = NULL;
+        orcm_value_t *mkv = NULL;
+
+        n=1;
+        if (OPAL_SUCCESS != (rc = opal_dss.unpack(inventory_snapshot, &inv, &n, OPAL_STRING))) {
+            ORTE_ERROR_LOG(rc);
+            OBJ_RELEASE(records);
+            return;
+        }
+        n=1;
+        if (OPAL_SUCCESS != (rc = opal_dss.unpack(inventory_snapshot, &inv_val, &n, OPAL_STRING))) {
+            ORTE_ERROR_LOG(rc);
+            OBJ_RELEASE(records);
+            return;
+        }
+
+        mkv = OBJ_NEW(orcm_value_t);
+        mkv->value.key = inv;
+        mkv->value.type = OPAL_STRING;
+        mkv->value.data.string = inv_val;
+        opal_list_append(records, (opal_list_item_t*)mkv);
+
+        --tot_items;
+    }
+    if (0 <= orcm_sensor_base.dbhandle) {
+        orcm_db.store_new(orcm_sensor_base.dbhandle, ORCM_DB_INVENTORY_DATA, records, NULL, my_inventory_log_cleanup, NULL);
+    } else {
+        my_inventory_log_cleanup(-1, -1, records, NULL, NULL);
+    }
 }

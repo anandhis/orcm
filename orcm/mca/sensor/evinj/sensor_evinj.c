@@ -178,7 +178,7 @@ static void sample(orcm_sensor_sampler_t *sampler)
             } else if (0 == strcmp("FATAL", elements[i])) {
                 rev->severity = ORCM_RAS_SEVERITY_FATAL;
             } else if (0 == strcmp("ALERT", elements[i])) {
-                rev->severity = ORCM_RAS_ASEVERITY_LERT;
+                rev->severity = ORCM_RAS_SEVERITY_ALERT;
             } else if (0 == strcmp("CRITICAL", elements[i])) {
                 rev->severity = ORCM_RAS_SEVERITY_CRIT;
             } else if (0 == strcmp("ERROR", elements[i])) {

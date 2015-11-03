@@ -100,7 +100,7 @@ static int component_select(orcm_session_id_t session, opal_list_t* attr)
                         ORTE_NAME_PRINT(ORTE_PROC_MY_NAME));
 
     int32_t mode, *mode_ptr;
-    char* name;
+    char* name = NULL;
     opal_list_t* data = NULL;
     opal_value_t *kv;
     bool governor_supported = false;
@@ -108,22 +108,22 @@ static int component_select(orcm_session_id_t session, opal_list_t* attr)
     mode_ptr = &mode;
     if (true != orte_get_attribute(attr, ORCM_PWRMGMT_POWER_MODE_KEY, (void**)&mode_ptr, OPAL_INT32)) {
         opal_output(0, "pwrmgmt:manualfreq: no mode was specified in constraints");
-        return ORCM_ERROR;
+        goto error;
     }
     if(ORCM_PWRMGMT_MODE_MANUAL_FREQ != mode) {
         //we cannot handle this request
-        return ORCM_ERROR;
+        goto error;
     }
 
     if(!ORTE_PROC_IS_SCHEDULER) {
         if (true != orte_get_attribute(attr, ORCM_PWRMGMT_SELECTED_COMPONENT_KEY, (void**)&name, OPAL_STRING)) {
             opal_output(0, "pwrmgmt:manualfreq: No global component has been chosen");
             //The scheduler should have selected a component
-            return ORCM_ERROR;
+            goto error;
         }
         if(strncmp(name, component_name, strlen(component_name)) ) { 
             //We can handle this mode, but we are not the selected component
-            return ORCM_ERROR;
+            goto error;
         }
     }
 
@@ -142,10 +142,18 @@ static int component_select(orcm_session_id_t session, opal_list_t* attr)
         
         if (false == governor_supported) {
             opal_output(0, "pwrmgmt:manualfreq: userspace governor is not supported");
-            return ORCM_ERROR;
+            goto error;
         }
     }
+    if (NULL != name) {
+        free(name);
+    }
     return ORCM_SUCCESS;
+error:
+    if (NULL != name) {
+        free(name);
+    }
+    return ORCM_ERROR;
 }
 
 static int set_attributes(orcm_session_id_t session, opal_list_t* attr) 
@@ -274,6 +282,7 @@ static int reset_attributes(orcm_session_id_t session, opal_list_t* attr)
     }
 
     orte_remove_attribute(attr, ORCM_PWRMGMT_SELECTED_COMPONENT_KEY);
+    free(name);
 
     return ORCM_SUCCESS;
 }

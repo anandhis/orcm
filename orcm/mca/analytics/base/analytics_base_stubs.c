@@ -169,8 +169,8 @@ static void orcm_analytics_base_append_attributes(char **subtokens, opal_list_t 
 
     wf_attribute = OBJ_NEW(opal_value_t);
     wf_attribute->type = OPAL_STRING;
-    wf_attribute->key = subtokens[0];
-    wf_attribute->data.string = subtokens[1];
+    wf_attribute->key = strdup( subtokens[0] );
+    wf_attribute->data.string = strdup ( subtokens[1] );
     opal_list_append(attr_list, &wf_attribute->super);
     opal_dss.print(&output, "", wf_attribute, OPAL_VALUE);
     OPAL_OUTPUT_VERBOSE((5, orcm_analytics_base_framework.framework_output,
@@ -203,6 +203,7 @@ static int orcm_analytics_base_subtokenize_attributes(char **tokens, opal_list_t
             return ORCM_ERR_BAD_PARAM;
         }
     }
+    opal_argv_free(subtokens);
     return ORCM_SUCCESS;
 }
 
@@ -434,7 +435,7 @@ int orcm_analytics_base_array_create(opal_value_array_t **analytics_sample_array
 
 
 int orcm_analytics_base_array_append(opal_value_array_t *analytics_sample_array, int index,
-                                     char *plugin_name, char *host_name, orcm_metric_value_t *sample)
+                                     char *plugin_name, char *host_name, orcm_value_t *sample)
 {
     orcm_analytics_value_t analytics_sample;
     int rc;

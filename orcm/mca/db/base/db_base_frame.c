@@ -32,6 +32,9 @@
 
 #include "orcm/mca/db/base/static-components.h"
 
+extern char* get_opal_value_as_sql_string(opal_value_t *value);
+extern char* build_query_from_view_name_and_filters(const char* view_name, opal_list_t* filters);
+
 orcm_db_API_module_t orcm_db = {
     orcm_db_base_open,
     orcm_db_base_close,
@@ -43,6 +46,9 @@ orcm_db_API_module_t orcm_db = {
     orcm_db_base_commit,
     orcm_db_base_rollback,
     orcm_db_base_fetch,
+    orcm_db_base_get_num_rows,
+    orcm_db_base_get_next_row,
+    orcm_db_base_close_result_set,
     orcm_db_base_remove_data
 };
 orcm_db_base_t orcm_db_base;
@@ -141,6 +147,7 @@ static void req_con(orcm_db_request_t *p)
     p->end_time = NULL;
     p->component_index = NULL;
     p->test_result = NULL;
+    p->view_name = NULL;
 
     p->kvs = NULL;
 }
@@ -155,3 +162,12 @@ OBJ_CLASS_INSTANCE(orcm_db_handle_t,
 OBJ_CLASS_INSTANCE(orcm_db_base_active_component_t,
                    opal_list_item_t,
                    NULL, NULL);
+
+static void filter_con(orcm_db_filter_t *p)
+{
+    p->op = NONE;
+}
+
+OBJ_CLASS_INSTANCE(orcm_db_filter_t,
+                   opal_value_t,
+                   filter_con, NULL);

@@ -43,6 +43,8 @@
 
 #include "db_odbc.h"
 
+extern bool is_supported_opal_int_type(opal_data_type_t type);
+
 /* Module API functions */
 static int odbc_init(struct orcm_db_base_module_t *imod);
 static void odbc_finalize(struct orcm_db_base_module_t *imod);
@@ -73,9 +75,17 @@ static int odbc_record_diag_test(struct orcm_db_base_module_t *imod,
 static int odbc_commit(struct orcm_db_base_module_t *imod);
 static int odbc_rollback(struct orcm_db_base_module_t *imod);
 static int odbc_fetch(struct orcm_db_base_module_t *imod,
-                      const char *primary_key,
-                      const char *key,
-                      opal_list_t *kvs);
+                      const char* view,
+                      opal_list_t *filters,
+                      opal_list_t *output);
+static int odbc_get_num_rows(struct orcm_db_base_module_t *imod,
+                             int rshandle,
+                             int *num_rows);
+static int odbc_get_next_row(struct orcm_db_base_module_t *imod,
+                             int rshandle,
+                             opal_list_t *row);
+static int odbc_close_result_set(struct orcm_db_base_module_t *imod,
+                                 int rshandle);
 static int odbc_remove(struct orcm_db_base_module_t *imod,
                       const char *primary_key,
                       const char *key);
@@ -109,6 +119,9 @@ mca_db_odbc_module_t mca_db_odbc_module = {
         odbc_commit,
         odbc_rollback,
         odbc_fetch,
+        odbc_get_num_rows,
+        odbc_get_next_row,
+        odbc_close_result_set,
         odbc_remove
     },
 };
@@ -124,8 +137,9 @@ static int odbc_init(struct orcm_db_base_module_t *imod)
 {
     mca_db_odbc_module_t *mod = (mca_db_odbc_module_t*)imod;
     char **login = NULL;
-
     SQLRETURN ret;
+
+    mod->results_sets = OBJ_NEW(opal_pointer_array_t);
 
     /* break the user info into its login parts */
     login = opal_argv_split(mod->user, ':');
@@ -224,6 +238,8 @@ static void odbc_finalize(struct orcm_db_base_module_t *imod)
     if (NULL != mod->envhandle) {
         SQLFreeHandle(SQL_HANDLE_ENV, mod->envhandle);
     }
+    OBJ_RELEASE(mod->results_sets);
+    mod->results_sets = NULL;
 
     free(mod);
 }
@@ -683,7 +699,7 @@ static int odbc_store_data_sample(mca_db_odbc_module_t *mod,
     orcm_db_item_type_t prev_type = ORCM_DB_ITEM_INTEGER;
     bool change_value_binding = true;
 
-    orcm_metric_value_t *mv;
+    orcm_value_t *mv;
     opal_value_t *kv;
     int i;
 
@@ -766,6 +782,7 @@ static int odbc_store_data_sample(mca_db_odbc_module_t *mod,
     ret = SQLAllocHandle(SQL_HANDLE_STMT, mod->dbhandle, &stmt);
     if (!(SQL_SUCCEEDED(ret))) {
         ERR_MSG_FMT_STORE("SQLAllocHandle returned: %d", ret);
+        OBJ_DESTRUCT(&item_bm);
         return ORCM_ERROR;
     }
 
@@ -859,7 +876,7 @@ static int odbc_store_data_sample(mca_db_odbc_module_t *mod,
 
     /* Store all the samples passed in the list */
     i = 0;
-    OPAL_LIST_FOREACH(mv, input, orcm_metric_value_t) {
+    OPAL_LIST_FOREACH(mv, input, orcm_value_t) {
         /* Ignore the items that have already been processed */
         if (opal_bitmap_is_set_bit(&item_bm, i)) {
             i++;
@@ -1059,6 +1076,7 @@ cleanup_and_exit:
         SQLFreeHandle(SQL_HANDLE_STMT, stmt);
     }
 
+    OBJ_DESTRUCT(&item_bm);
     return rc;
 }
 
@@ -1071,7 +1089,7 @@ static int odbc_record_data_samples(struct orcm_db_base_module_t *imod,
     mca_db_odbc_module_t *mod = (mca_db_odbc_module_t*)imod;
     int rc = ORCM_SUCCESS;
 
-    orcm_metric_value_t *mv;
+    orcm_value_t *mv;
 
     SQL_TIMESTAMP_STRUCT sampletime;
     orcm_db_item_t item;
@@ -1197,7 +1215,7 @@ static int odbc_record_data_samples(struct orcm_db_base_module_t *imod,
         goto cleanup_and_exit;
     }
 
-    OPAL_LIST_FOREACH(mv, samples, orcm_metric_value_t) {
+    OPAL_LIST_FOREACH(mv, samples, orcm_value_t) {
         if (NULL == mv->value.key || 0 == strlen(mv->value.key)) {
             rc = ORCM_ERR_BAD_PARAM;
             ERR_MSG_STORE("Key or data item name not provided for value");
@@ -1419,7 +1437,7 @@ static int odbc_update_node_features(struct orcm_db_base_module_t *imod,
     mca_db_odbc_module_t *mod = (mca_db_odbc_module_t*)imod;
     int rc = ORCM_SUCCESS;
 
-    orcm_metric_value_t *mv;
+    orcm_value_t *mv;
     orcm_db_item_t item;
     orcm_db_item_type_t prev_type = ORCM_DB_ITEM_INTEGER;
     bool change_value_binding = true;
@@ -1510,7 +1528,7 @@ static int odbc_update_node_features(struct orcm_db_base_module_t *imod,
         goto cleanup_and_exit;
     }
 
-    OPAL_LIST_FOREACH(mv, features, orcm_metric_value_t) {
+    OPAL_LIST_FOREACH(mv, features, orcm_value_t) {
         if (NULL == mv->value.key || 0 == strlen(mv->value.key)) {
             rc = ORCM_ERR_BAD_PARAM;
             ERR_MSG_UNF("Key or node feature name not provided for value");
@@ -1725,7 +1743,7 @@ static int odbc_store_node_features(mca_db_odbc_module_t *mod,
     bool change_value_binding = true;
 
     opal_value_t *kv;
-    orcm_metric_value_t *mv;
+    orcm_value_t *mv;
 
     SQLLEN null_len = SQL_NULL_DATA;
     SQLRETURN ret;
@@ -1772,6 +1790,7 @@ static int odbc_store_node_features(mca_db_odbc_module_t *mod,
     ret = SQLAllocHandle(SQL_HANDLE_STMT, mod->dbhandle, &stmt);
     if (!(SQL_SUCCEEDED(ret))) {
         ERR_MSG_FMT_UNF("SQLAllocHandle returned: %d", ret);
+        OBJ_DESTRUCT(&item_bm);
         return ORCM_ERROR;
     }
 
@@ -1841,7 +1860,7 @@ static int odbc_store_node_features(mca_db_odbc_module_t *mod,
 
     /* Store all the node features provided in the list */
     i = 0;
-    OPAL_LIST_FOREACH(mv, input, orcm_metric_value_t) {
+    OPAL_LIST_FOREACH(mv, input, orcm_value_t) {
         /* Skip the items that have already been processed */
         if (opal_bitmap_is_set_bit(&item_bm, i)) {
             i++;
@@ -2040,6 +2059,8 @@ cleanup_and_exit:
         SQLFreeHandle(SQL_HANDLE_STMT, stmt);
     }
 
+    OBJ_DESTRUCT(&item_bm);
+
     return rc;
 }
 
@@ -2076,7 +2097,7 @@ static int odbc_record_diag_test(struct orcm_db_base_module_t *imod,
     mca_db_odbc_module_t *mod = (mca_db_odbc_module_t*)imod;
     int rc = ORCM_SUCCESS;
 
-    orcm_metric_value_t *mv;
+    orcm_value_t *mv;
 
     SQL_TIMESTAMP_STRUCT start_time_sql;
     SQL_TIMESTAMP_STRUCT end_time_sql;
@@ -2353,7 +2374,7 @@ static int odbc_record_diag_test(struct orcm_db_base_module_t *imod,
         goto cleanup_and_exit;
     }
 
-    OPAL_LIST_FOREACH(mv, test_params, orcm_metric_value_t) {
+    OPAL_LIST_FOREACH(mv, test_params, orcm_value_t) {
         if (NULL == mv->value.key || 0 == strlen(mv->value.key)) {
             rc = ORCM_ERR_BAD_PARAM;
             ERR_MSG_RDT("Key or test parameter name not provided for value");
@@ -2582,7 +2603,7 @@ static int odbc_store_diag_test(mca_db_odbc_module_t *mod,
     bool change_value_binding = true;
 
     opal_value_t *kv;
-    orcm_metric_value_t *mv;
+    orcm_value_t *mv;
 
     SQLLEN null_len = SQL_NULL_DATA;
     SQLRETURN ret;
@@ -2602,26 +2623,31 @@ static int odbc_store_diag_test(mca_db_odbc_module_t *mod,
     /* Check the parameters */
     if (NULL == param_items[0]) {
         ERR_MSG_RDT("No hostname provided");
+        OBJ_DESTRUCT(&item_bm);
         return ORCM_ERR_BAD_PARAM;
     }
 
     if (NULL == param_items[1]) {
         ERR_MSG_RDT("No diagnostic type provided");
+        OBJ_DESTRUCT(&item_bm);
         return ORCM_ERR_BAD_PARAM;
     }
 
     if (NULL == param_items[2]) {
         ERR_MSG_RDT("No diagnostic subtype provided");
+        OBJ_DESTRUCT(&item_bm);
         return ORCM_ERR_BAD_PARAM;
     }
 
     if (NULL == param_items[3]) {
         ERR_MSG_RDT("No start time provided");
+        OBJ_DESTRUCT(&item_bm);
         return ORCM_ERR_BAD_PARAM;
     }
 
     if (NULL == param_items[4]) {
         ERR_MSG_RDT("No test result provided");
+        OBJ_DESTRUCT(&item_bm);
         return ORCM_ERR_BAD_PARAM;
     }
 
@@ -2721,7 +2747,8 @@ static int odbc_store_diag_test(mca_db_odbc_module_t *mod,
     ret = SQLAllocHandle(SQL_HANDLE_STMT, mod->dbhandle, &stmt);
     if (!(SQL_SUCCEEDED(ret))) {
         ERR_MSG_FMT_RDT("SQLAllocHandle returned: %d", ret);
-        return ORCM_ERROR;
+        rc = ORCM_ERROR;
+        goto cleanup_and_exit;
     }
 
     /* Record the diag. test result */
@@ -2952,7 +2979,7 @@ static int odbc_store_diag_test(mca_db_odbc_module_t *mod,
     }
 
     i = 0;
-    OPAL_LIST_FOREACH(mv, input, orcm_metric_value_t) {
+    OPAL_LIST_FOREACH(mv, input, orcm_value_t) {
         /* Skip the items that have already been processed */
         if (opal_bitmap_is_set_bit(&item_bm, i)) {
             i++;
@@ -3150,6 +3177,8 @@ cleanup_and_exit:
         SQLFreeHandle(SQL_HANDLE_STMT, stmt);
     }
 
+    OBJ_DESTRUCT(&item_bm);
+
     return rc;
 }
 
@@ -3199,156 +3228,6 @@ static int odbc_rollback(struct orcm_db_base_module_t *imod)
     }
 
     return ORCM_SUCCESS;
-}
-
-#define ERR_MSG_FMT_FETCH(msg, ...) \
-    opal_output(0, "***********************************************"); \
-    opal_output(0, "db:odbc: Unable to fetch data: "); \
-    opal_output(0, msg, ##__VA_ARGS__); \
-    opal_output(0, "***********************************************");
-
-static int odbc_fetch(struct orcm_db_base_module_t *imod,
-                      const char *primary_key,
-                      const char *key,
-                      opal_list_t *kvs)
-{
-    mca_db_odbc_module_t *mod = (mca_db_odbc_module_t*)imod;
-    int rc = ORCM_SUCCESS;
-
-    SQLRETURN ret;
-
-    SQLHSTMT stmt = SQL_NULL_HSTMT;
-    SQLSMALLINT cols;
-    SQLSMALLINT type;
-    SQLULEN len;
-
-    char query[1024];
-    opal_value_t *kv = NULL;
-
-    SQL_TIMESTAMP_STRUCT time_stamp;
-    struct tm temp_tm;
-    SQLUSMALLINT i;
-
-    snprintf(query, sizeof(query), "select * from %s where %s",
-             mod->table, primary_key);
-
-    ret = SQLAllocHandle(SQL_HANDLE_STMT, mod->dbhandle, &stmt);
-    if (!(SQL_SUCCEEDED(ret))) {
-        ERR_MSG_FMT_FETCH("SQLAllocHandle returned: %d", ret);
-        return ORCM_ERROR;
-    }
-
-    ret = SQLExecDirect(stmt, (SQLCHAR *)query, SQL_NTS);
-    if (!(SQL_SUCCEEDED(ret))) {
-        rc = ORCM_ERROR;
-        ERR_MSG_FMT_FETCH("SQLExecDirect returned: %d", ret);
-        goto cleanup_and_exit;
-    }
-
-    ret = SQLNumResultCols(stmt, &cols);
-    if (!(SQL_SUCCEEDED(ret))) {
-        rc = ORCM_ERROR;
-        ERR_MSG_FMT_FETCH("SQLNumResultCols returned: %d", ret);
-        goto cleanup_and_exit;
-    }
-
-    ret = SQLFetch(stmt);
-    if (!(SQL_SUCCEEDED(ret))) {
-        rc = ORCM_ERROR;
-        ERR_MSG_FMT_FETCH("SQLFetch returned: %d", ret);
-        goto cleanup_and_exit;
-    }
-
-    for (i = 1; i <= cols; i++) {
-        ret = SQLDescribeCol(stmt, i, NULL, 0, NULL, &type, &len, NULL, NULL);
-        if (!(SQL_SUCCEEDED(ret))) {
-            rc = ORCM_ERROR;
-            ERR_MSG_FMT_FETCH("SQLDescribeCol returned: %d", ret);
-            goto cleanup_and_exit;
-        }
-
-        kv = OBJ_NEW(opal_value_t);
-        switch (type) {
-            case SQL_CHAR:
-            case SQL_VARCHAR:
-                kv->type = OPAL_STRING;
-                kv->data.string = (char *)malloc(len);
-                ret = SQLGetData(stmt, i, SQL_C_CHAR, kv->data.string,
-                                 len, NULL);
-                break;
-            case SQL_DECIMAL:
-            case SQL_NUMERIC:
-            case SQL_REAL:
-            case SQL_FLOAT:
-                kv->type = OPAL_FLOAT;
-                ret = SQLGetData(stmt, i, SQL_C_FLOAT, &kv->data.fval,
-                                 sizeof(kv->data.fval), NULL);
-                break;
-            case SQL_DOUBLE:
-                kv->type = OPAL_DOUBLE;
-                ret = SQLGetData(stmt, i, SQL_C_DOUBLE, &kv->data.dval,
-                                 sizeof(kv->data.dval), NULL);
-                break;
-            case SQL_SMALLINT:
-                kv->type = OPAL_INT16;
-                ret = SQLGetData(stmt, i, SQL_C_SSHORT, &kv->data.int16,
-                                 sizeof(kv->data.int16), NULL);
-                break;
-            case SQL_INTEGER:
-                kv->type = OPAL_INT32;
-                ret = SQLGetData(stmt, i, SQL_C_SLONG, &kv->data.int32,
-                                 sizeof(kv->data.int32), NULL);
-                break;
-            case SQL_BIT:
-            case SQL_TINYINT:
-                kv->type = OPAL_BYTE;
-                ret = SQLGetData(stmt, i, SQL_C_UTINYINT, &kv->data.byte,
-                                 sizeof(kv->data.byte), NULL);
-                break;
-            /* TODO: add support for dates and times */
-            /*case SQL_TYPE_DATE:
-            case SQL_TYPE_TIME:*/
-            case SQL_TYPE_TIMESTAMP:
-                kv->type = OPAL_TIMEVAL;
-                ret = SQLGetData(stmt, i, SQL_C_TYPE_TIMESTAMP, &time_stamp,
-                                 sizeof(time_stamp), NULL);
-                /* The year in tm represents the number of years since 1900 */
-                temp_tm.tm_year = time_stamp.year - 1900;
-                /* The month in tm is zero-based */
-                memset(&temp_tm, 0, sizeof(temp_tm));
-                temp_tm.tm_mon = time_stamp.month - 1;
-                temp_tm.tm_mday = time_stamp.day;
-                temp_tm.tm_hour = time_stamp.hour;
-                temp_tm.tm_min = time_stamp.minute;
-                temp_tm.tm_sec = time_stamp.second;
-
-                kv->data.tv.tv_sec = mktime(&temp_tm);
-                kv->data.tv.tv_usec = 0;
-                break;
-            default:
-                /* TODO: unsupported type (ignore for now) */
-                continue;
-        }
-        if (!(SQL_SUCCEEDED(ret))) {
-            rc = ORCM_ERROR;
-            ERR_MSG_FMT_FETCH("SQLGetData returned: %d", ret);
-            goto cleanup_and_exit;
-        }
-
-        opal_list_append(kvs, &kv->super);
-        kv = NULL;
-    }
-
-cleanup_and_exit:
-    if (NULL != kv) {
-        OBJ_RELEASE(kv);
-    }
-
-    if (SQL_NULL_HSTMT != stmt) {
-        SQLFreeHandle(SQL_HANDLE_STMT, stmt);
-    }
-
-    return rc;
 }
 
 #define ERR_MSG_FMT_REMOVE(msg, ...) \
@@ -3470,4 +3349,496 @@ static bool tv_to_sql_timestamp(SQL_TIMESTAMP_STRUCT *sql_timestamp,
     } else {
         return false;
     }
+}
+
+#define ERR_MSG_FMT_FETCH(msg, ...) \
+    opal_output(0, "***********************************************"); \
+    opal_output(0, "db:odbc: Unable to fetch data: "); \
+    opal_output(0, msg, ##__VA_ARGS__); \
+    opal_output(0, "***********************************************");
+
+static int odbc_fetch(struct orcm_db_base_module_t *imod,
+                      const char *view,
+                      opal_list_t *filters,
+                      opal_list_t *kvs)
+{
+    mca_db_odbc_module_t *mod = (mca_db_odbc_module_t*)imod;
+    int rc = ORCM_SUCCESS;
+    SQLRETURN ret = SQL_SUCCESS;
+    SQLHSTMT stmt = SQL_NULL_HSTMT;
+    char *query = NULL;
+    int handle = -1;
+    opal_value_t *result = NULL;
+
+
+    if(NULL == view || 0 == strlen(view)) {
+        ERR_MSG_FMT_FETCH("database view passed was empty of %s!", "NULL");
+        rc = ORCM_ERR_NOT_IMPLEMENTED;
+        goto cleanup_and_exit;
+    }
+
+    if(NULL == kvs) {
+        ERR_MSG_FMT_FETCH("Argument 'kvs' passed was NULL but was expected to be valid opal_list_t pointer: %d", 0);
+        rc = ORCM_ERROR;
+        goto cleanup_and_exit;
+    }
+    query = build_query_from_view_name_and_filters(view, filters);
+    if(NULL == query) {
+        ERR_MSG_FMT_FETCH("build_query_from_view_name_and_filters returned: %s", "NULL");
+        rc = ORCM_ERROR;
+        goto cleanup_and_exit;
+    }
+    ret = SQLAllocHandle(SQL_HANDLE_STMT, mod->dbhandle, &stmt);
+    if (!(SQL_SUCCEEDED(ret))) {
+        ERR_MSG_FMT_FETCH("SQLAllocHandle returned %d for SQL_HANDLE_STMT handle creation (DB Handle=0x%016lx)!", ret, (size_t)mod->dbhandle);
+        rc = ORCM_ERROR;
+        goto cleanup_and_exit;
+    }
+
+    ret = SQLExecDirect(stmt, (SQLCHAR *)query, SQL_NTS);
+    if (!(SQL_SUCCEEDED(ret))) {
+        rc = ORCM_ERROR;
+        ERR_MSG_FMT_FETCH("SQLExecDirect returned: %d", ret);
+        goto cleanup_and_exit;
+    }
+
+    /* Add new results set handle */
+    handle = opal_pointer_array_add(mod->results_sets, (void*)stmt);
+    if(-1 == handle) {
+        rc = ORCM_ERROR;
+        ERR_MSG_FMT_FETCH("opal_pointer_array_add returned: %d", -1);
+        goto cleanup_and_exit;
+    }
+
+    /* Create returned handle object */
+    result = OBJ_NEW(opal_value_t);
+    result->type = OPAL_INT;
+    result->data.integer = handle;
+    opal_list_append(kvs, (void*)result); /* takes ownership */
+
+cleanup_and_exit:
+    free(query);
+    return rc;
+}
+
+static int odbc_get_num_rows(struct orcm_db_base_module_t *imod, int rshandle, int *num_rows)
+{
+    int rc = ORCM_ERROR;
+    mca_db_odbc_module_t *mod = (mca_db_odbc_module_t*)imod;
+    SQLHSTMT stmt = (SQLHSTMT)opal_pointer_array_get_item(mod->results_sets, rshandle);
+    SQLLEN sql_rows = 0;
+
+    if(SQL_NULL_HSTMT != stmt) {
+        SQLRETURN ret = SQLRowCount(stmt, &sql_rows);
+
+        if(SQL_SUCCEEDED(ret)) {
+            *num_rows = (int)sql_rows;
+            rc = ORCM_SUCCESS;
+        }
+    }
+    return rc;
+}
+/**************************************************************************************************
+ * If fetch features are added or column names change or opal types change for a column name
+ * change here!!!
+ **************************************************************************************************/
+ #define COLUMN_NAME_WIDTH 48 /* size is arbitrary but reasonable */
+ #define NO_COLUMN         (-1)
+extern const char *opal_type_column_name;
+extern const char *value_column_names[];
+
+static int get_number_of_columns(SQLHSTMT results)
+{
+    SQLSMALLINT column_count = 0;
+    SQLRETURN ret = SQLNumResultCols(results, &column_count);
+    if (!(SQL_SUCCEEDED(ret))) {
+        ERR_MSG_FMT_FETCH("SQLNumResultCols returned: %d", ret);
+        return -1;
+    }
+    return (int)column_count;
+}
+
+static int get_column_number_by_name(SQLHSTMT results, const char* name)
+{
+    SQLULEN col_size = 0;
+    SQLSMALLINT dec_dig = 0;
+    SQLSMALLINT nullable = 0;
+    SQLSMALLINT type = 0;
+    SQLSMALLINT name_len = 0;
+    char column_name[COLUMN_NAME_WIDTH];
+    int cols = get_number_of_columns(results);
+    if(-1 != cols) {
+        for(int i = 1; i <= cols; ++i) {
+            SQLRETURN ret = SQLDescribeCol(results, (SQLUSMALLINT)i, (SQLCHAR*)column_name, (SQLSMALLINT)COLUMN_NAME_WIDTH, &name_len, &type, &col_size, &dec_dig, &nullable);
+            if(!(SQL_SUCCEEDED(ret))) {
+                ERR_MSG_FMT_FETCH("SQLDescribeCol returned #1: %d", ret);
+                return NO_COLUMN;
+            }
+            column_name[name_len] = '\0';
+            if(0 == strcmp(column_name, name)) {
+                return i;
+            }
+        }
+    }
+    return NO_COLUMN;
+}
+
+static int get_value_column(SQLHSTMT results, int index)
+{
+    SQLULEN col_size = 0;
+    SQLSMALLINT dec_dig = 0;
+    SQLSMALLINT nullable = 0;
+    SQLSMALLINT type = 0;
+    SQLSMALLINT name_len = 0;
+    char column_name[COLUMN_NAME_WIDTH];
+    SQLSMALLINT column_count = 0;
+    SQLRETURN ret = SQLNumResultCols(results, &column_count);
+    if (!(SQL_SUCCEEDED(ret))) {
+        ERR_MSG_FMT_FETCH("SQLNumResultCols returned: %d", ret);
+        return NO_COLUMN;
+    }
+    for(int i = 1; i <= (int)column_count; ++i) {
+        ret = SQLDescribeCol(results, (SQLUSMALLINT)i, (SQLCHAR*)column_name, (SQLSMALLINT)COLUMN_NAME_WIDTH, &name_len, &type, &col_size, &dec_dig, &nullable);
+        if(!(SQL_SUCCEEDED(ret))) {
+            ERR_MSG_FMT_FETCH("SQLDescribeCol returned #2: %d", ret);
+            return NO_COLUMN;
+        }
+        column_name[name_len] = '\0';
+        if(0 == strcmp(column_name, value_column_names[index])) {
+            return i;
+        }
+    }
+    return NO_COLUMN;
+}
+
+static bool is_column_name_a_value_column(const char* column_name)
+{
+    int i = 0;
+    bool rv = false;
+
+    while(NULL != value_column_names[i]) {
+        if(0 == strcmp(column_name, value_column_names[i])) {
+            rv = true;
+            break;
+        }
+        ++i;
+    }
+    return rv;
+}
+
+static opal_data_type_t get_opal_type_from_sql_type(SQLSMALLINT sql_type)
+{
+    switch(sql_type) { /* Based on sql_types.h and dss_types.h */
+    case SQL_BIGINT:
+        return OPAL_INT64;
+    case SQL_INTEGER:
+        return OPAL_INT32;
+    case SQL_SMALLINT:
+        return OPAL_INT16;
+    case SQL_FLOAT:
+        return OPAL_DOUBLE;
+    case SQL_REAL:
+        return OPAL_FLOAT;
+    case SQL_DECIMAL:
+    case SQL_NUMERIC:
+    case SQL_DOUBLE:
+        return OPAL_DOUBLE;
+    case SQL_DATETIME:
+        return OPAL_TIMEVAL;
+    case SQL_CHAR:
+    case SQL_VARCHAR:
+        return OPAL_STRING;
+    default:
+        return OPAL_UNDEF;
+    }
+}
+/**************************************************************************************************/
+
+#define VALUE_STR_COLUMN_NUM    0
+#define VALUE_INT_COLUMN_NUM    1
+#define VALUE_REAL_COLUMN_NUM   2
+
+static opal_value_t *get_value_object(SQLHSTMT results, int unused, opal_data_type_t type)
+{
+    SQLLEN result_len = 0;
+    SQLRETURN ret = SQL_SUCCESS;
+    int column = NO_COLUMN;
+    if(OPAL_STRING == type && NO_COLUMN == get_value_column(results, VALUE_STR_COLUMN_NUM)) {
+        return NULL;
+    }
+    if((OPAL_FLOAT == type || OPAL_DOUBLE == type) && NO_COLUMN == get_value_column(results, VALUE_REAL_COLUMN_NUM)) {
+        return NULL;
+    }
+    if(true == is_supported_opal_int_type(type) && NO_COLUMN == get_value_column(results, VALUE_INT_COLUMN_NUM)) {
+        return NULL;
+    }
+    opal_value_t *rv = OBJ_NEW(opal_value_t);
+    rv->type = type;
+    rv->key = strdup("value");
+    switch(type) { /* all PQgetvalue buffers are owned by PQ */
+        case OPAL_BYTE:
+        case OPAL_SIZE:
+        case OPAL_PID:
+        case OPAL_INT:
+        case OPAL_INT8:
+        case OPAL_INT16:
+        case OPAL_INT32:
+        case OPAL_INT64:
+        case OPAL_UINT:
+        case OPAL_UINT8:
+        case OPAL_UINT16:
+        case OPAL_UINT32:
+        case OPAL_UINT64:
+            column = get_value_column(results, VALUE_INT_COLUMN_NUM);
+            ret = SQLGetData(results, column, SQL_BIGINT, &rv->data.uint64, sizeof(uint64_t), &result_len);
+            if(!(SQL_SUCCEEDED(ret))) {
+                ERR_MSG_FMT_FETCH("SQLGetData returned #4: %d", ret);
+                OBJ_RELEASE(rv);
+                return NULL;
+            }
+            break;
+        case OPAL_BOOL:
+            {
+                int64_t local;
+                column = get_value_column(results, VALUE_INT_COLUMN_NUM);
+                ret = SQLGetData(results, column, SQL_BIGINT, &local, sizeof(int64_t), &result_len);
+                if(!(SQL_SUCCEEDED(ret))) {
+                    ERR_MSG_FMT_FETCH("SQLGetData returned #5: %d", ret);
+                    OBJ_RELEASE(rv);
+                    return NULL;
+                }
+                rv->data.flag = (0 == local)?false:true;
+            }
+            break;
+        case OPAL_STRING:
+            {
+                SQLULEN col_size = 0;
+                SQLSMALLINT dec_dig = 0;
+                SQLSMALLINT nullable = 0;
+                SQLSMALLINT type = 0;
+                SQLSMALLINT name_len = 0;
+                char column_name[COLUMN_NAME_WIDTH];
+                size_t size = 0;
+                column = get_value_column(results, VALUE_STR_COLUMN_NUM);
+                ret = SQLDescribeCol(results, column, (SQLCHAR*)column_name, (SQLSMALLINT)COLUMN_NAME_WIDTH, &name_len, &type, &col_size, &dec_dig, &nullable);
+                if(!(SQL_SUCCEEDED(ret))) {
+                    ERR_MSG_FMT_FETCH("SQLDescribeCol returned #3: %d", ret);
+                    OBJ_RELEASE(rv);
+                    return NULL;
+                }
+                size = (size_t)col_size;
+                column_name[name_len] = '\0';
+                rv->data.string = (char*)malloc(size);
+                memset(rv->data.string, 0, (int)size);
+                ret = SQLGetData(results, column, SQL_C_CHAR, rv->data.string, (SQLLEN)(size), &result_len);
+                if(!(SQL_SUCCEEDED(ret))) {
+                    ERR_MSG_FMT_FETCH("SQLGetData returned #6: %d", ret);
+                    OBJ_RELEASE(rv);
+                    return NULL;
+                }
+            }
+            break;
+        case OPAL_FLOAT:
+            {
+                double dbl;
+                column = get_value_column(results, VALUE_REAL_COLUMN_NUM);
+                ret = SQLGetData(results, column, SQL_DOUBLE, &dbl, sizeof(double), &result_len);
+                if(!(SQL_SUCCEEDED(ret))) {
+                    ERR_MSG_FMT_FETCH("SQLGetData returned #7: %d", ret);
+                    OBJ_RELEASE(rv);
+                    return NULL;
+                }
+                rv->data.fval = (float)dbl;
+            }
+            break;
+        case OPAL_DOUBLE:
+            column = get_value_column(results, VALUE_REAL_COLUMN_NUM);
+            ret = SQLGetData(results, column, SQL_DOUBLE, &rv->data.dval, sizeof(double), &result_len);
+            if(!(SQL_SUCCEEDED(ret))) {
+                ERR_MSG_FMT_FETCH("SQLGetData returned #8: %d", ret);
+                OBJ_RELEASE(rv);
+                return NULL;
+            }
+            break;
+        default: /* No supported basic data type so ignore it */
+            ERR_MSG_FMT_FETCH("An unsupported orcm value type was encountered: %d", type);
+            OBJ_RELEASE(rv);
+            return NULL;
+    }
+    return rv;
+}
+
+static int odbc_get_next_row(struct orcm_db_base_module_t *imod,
+                             int rshandle,
+                             opal_list_t *row)
+{
+    mca_db_odbc_module_t *mod = (mca_db_odbc_module_t*)imod;
+    SQLHSTMT stmt = (SQLHSTMT)opal_pointer_array_get_item(mod->results_sets, rshandle);
+    int rc = ORCM_SUCCESS;
+
+    SQLRETURN ret = SQL_SUCCESS;
+    int cols = -1;
+    int data_type_col = -1;
+    opal_data_type_t data_type = OPAL_UNDEF;
+    bool inserted_value = false;
+    opal_value_t* value_object = NULL;
+    SQLLEN result_len = 0;
+
+    if(SQL_NULL_HSTMT == stmt) {
+        rc = ORCM_ERROR;
+        ERR_MSG_FMT_FETCH("SQLAllocHandle returned %d for SQL_HANDLE_STMT handle creation (DB Handle=0x%016lx)!", ret, (size_t)mod->dbhandle);
+        return ORCM_ERROR;
+    }
+
+    /* get next row */
+    ret = SQLFetch(stmt);
+    if (!(SQL_SUCCEEDED(ret))) {
+        rc = ORCM_ERROR;
+        ERR_MSG_FMT_FETCH("SQLFetch returned: %d", ret);
+        goto next_cleanup;
+    }
+
+    /* get row ORCM data value type */
+    data_type_col = get_column_number_by_name(stmt, opal_type_column_name);
+    if(NO_COLUMN != data_type_col) {
+        ret = SQLGetData(stmt, data_type_col, SQL_C_LONG, &data_type, sizeof(opal_data_type_t), &result_len);
+        if(!(SQL_SUCCEEDED(ret))) {
+            ERR_MSG_FMT_FETCH("SQLGetData returned: %d", ret);
+            rc = ORCM_ERROR;
+            goto next_cleanup;
+        }
+
+        /* retrieve 1 correctly typed object for one of 'value_str', 'value_int', 'value_real' */
+        value_object = get_value_object(stmt, 0, data_type);
+    } else { /* If the current schema is missing the data type column 'data_type_id' use this logic */
+        data_type_col = get_value_column(stmt, VALUE_STR_COLUMN_NUM);
+        data_type = OPAL_STRING;
+        if(NO_COLUMN == data_type_col) {
+            data_type_col = get_value_column(stmt, VALUE_INT_COLUMN_NUM);
+            data_type = OPAL_INT64;
+            if(NO_COLUMN == data_type_col) {
+                data_type_col = get_value_column(stmt, VALUE_REAL_COLUMN_NUM);
+                data_type = OPAL_DOUBLE;
+            }
+        }
+        /* retrieve 1 grossly typed object for one of 'value_str', 'value_int', 'value_real' */
+        value_object = get_value_object(stmt, 0, data_type);
+    }
+
+    /* Get row general column data */
+    cols = get_number_of_columns(stmt);
+    for(int i = 1; i <= cols; ++i) {
+        SQLULEN len = 0;
+        opal_value_t* kv = NULL;
+        opal_data_type_t type = OPAL_UNDEF;
+        char name_ref[COLUMN_NAME_WIDTH];
+        SQLSMALLINT sql_data_type = -1;
+        SQLSMALLINT dec_dig = 0;
+        SQLSMALLINT nullable = 0;
+        SQLSMALLINT name_len = 0;
+
+        if(i == data_type_col) { /* skip 'data_type_id' column */
+            continue;
+        }
+
+        ret = SQLDescribeCol(stmt, (SQLUSMALLINT)i, (SQLCHAR*)name_ref, (SQLSMALLINT)COLUMN_NAME_WIDTH, &name_len, &sql_data_type, &len, &dec_dig, &nullable);
+        if(!(SQL_SUCCEEDED(ret))) {
+            ERR_MSG_FMT_FETCH("SQLDescribeCol returned #4: %d", ret);
+            rc = ORCM_ERROR;
+            goto next_cleanup;
+        }
+        name_ref[name_len] = '\0';
+        if(-1 == sql_data_type) {
+            sql_data_type = SQL_VARCHAR; /* In practice, the SQLDescribeCol is not returning a type for the 'string' values when the underlying DB is postgres. */
+        }
+        if(true == is_column_name_a_value_column(name_ref)) {
+            if(false == inserted_value && NULL != value_object) {
+                opal_list_append(row, &value_object->super);
+                value_object = NULL;
+                inserted_value = true;
+            }
+            continue; /* skip all 'value_*' named columns as they are already handled */
+        }
+
+        type = get_opal_type_from_sql_type(sql_data_type);
+        if(OPAL_UNDEF == type) {
+            ERR_MSG_FMT_FETCH("An unrecognized column name '%s' was encountered and skipped during a call to 'get_next_row'", name_ref);
+            continue; /* skip unknown fields */
+        }
+        kv = OBJ_NEW(opal_value_t);
+        kv->key = strdup(name_ref);
+        kv->type = type;
+        switch(type) {
+            case OPAL_STRING:
+                {
+                    char* buffer = malloc(len + 1);
+                    ret = SQLGetData(stmt, i, SQL_C_CHAR, buffer, len + 1, &result_len);
+                    if(!(SQL_SUCCEEDED(ret))) {
+                        ERR_MSG_FMT_FETCH("SQLGetData returned #1: %d", ret);
+                        rc = ORCM_ERROR;
+                        free(buffer);
+                        OBJ_RELEASE(kv);
+                        goto next_cleanup;
+                    }
+                    kv->data.string = strdup(buffer);
+                    free(buffer);
+                }
+                break;
+            case OPAL_INT:
+                ret = SQLGetData(stmt, i, SQL_C_LONG, &kv->data.integer, sizeof(kv->data.integer), &result_len);
+                if(!(SQL_SUCCEEDED(ret))) {
+                    ERR_MSG_FMT_FETCH("SQLGetData returned #2: %d", ret);
+                    rc = ORCM_ERROR;
+                    OBJ_RELEASE(kv);
+                    goto next_cleanup;
+                }
+                break;
+            case OPAL_TIMEVAL:
+                {
+                    SQL_TIMESTAMP_STRUCT time_stamp;
+                    struct tm temp_tm;
+                    ret = SQLGetData(stmt, i, SQL_C_TYPE_TIMESTAMP, &time_stamp, sizeof(time_stamp), &result_len);
+                    if(!(SQL_SUCCEEDED(ret))) {
+                        ERR_MSG_FMT_FETCH("SQLGetData returned #3: %d", ret);
+                        rc = ORCM_ERROR;
+                        OBJ_RELEASE(kv);
+                        goto next_cleanup;
+                    }
+                    /* The year in tm represents the number of years since 1900 */
+                    temp_tm.tm_year = time_stamp.year - 1900;
+                    /* The month in tm is zero-based */
+                    memset(&temp_tm, 0, sizeof(temp_tm));
+                    temp_tm.tm_mon = time_stamp.month - 1;
+                    temp_tm.tm_mday = time_stamp.day;
+                    temp_tm.tm_hour = time_stamp.hour;
+                    temp_tm.tm_min = time_stamp.minute;
+                    temp_tm.tm_sec = time_stamp.second;
+
+                    kv->data.tv.tv_sec = mktime(&temp_tm);
+                    kv->data.tv.tv_usec = 0;
+                }
+                break;
+        }
+        opal_list_append(row, (opal_list_item_t*)kv);
+    }
+next_cleanup:
+    return rc;
+}
+
+static int odbc_close_result_set(struct orcm_db_base_module_t *imod,
+                                 int rshandle)
+{
+    mca_db_odbc_module_t *mod = (mca_db_odbc_module_t*)imod;
+    SQLHSTMT stmt = (SQLHSTMT)opal_pointer_array_get_item(mod->results_sets, rshandle);
+
+    if(SQL_NULL_HSTMT == stmt) {
+        ERR_MSG_FMT_FETCH("Bad results handle: %d", rshandle);
+        return ORCM_ERROR;
+    }
+    opal_pointer_array_set_item(mod->results_sets, rshandle, NULL);
+    if (SQL_NULL_HSTMT != stmt) {
+        SQLFreeHandle(SQL_HANDLE_STMT, stmt);
+    }
+
+    return ORCM_SUCCESS;
 }

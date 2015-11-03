@@ -22,6 +22,15 @@ int orcm_err2str(int errnum, const char **errmsg)
         case ORCM_ERR_SENSOR_READ_FAIL:
         *errmsg = "Unable to read sensor data";
         break;
+        case ORCM_ERR_NO_ANY_GROUP:
+        *errmsg = "There are no groups defined yet!";
+        break;
+        case ORCM_ERR_GROUP_NOT_EXIST:
+        *errmsg = "The requested group does not exist!";
+        break;
+        case ORCM_ERR_NODE_NOT_EXIST:
+        *errmsg = "Some node(s) does(do) not exist in the requested group(s)!";
+        break;
         default:
             *errmsg = NULL;
     }

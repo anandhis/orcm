@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014      Intel, Inc. All rights reserved
+ * Copyright (c) 2014-2015 Intel, Inc. All rights reserved
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -69,9 +69,9 @@ int orcm_octl_sensor_sample_rate_set(int cmd, char **argv);
 int orcm_octl_sensor_sample_rate_get(int cmd, char **argv);
 int orcm_octl_sensor_policy_set(int cmd, char **argv);
 int orcm_octl_sensor_policy_get(int cmd, char **argv);
-int orcm_octl_grouping_add(int argc, char **argv);
-int orcm_octl_grouping_remove(int argc, char **argv);
-int orcm_octl_grouping_list(int argc, char **argv);
+int orcm_octl_logical_group_add(int argc, char **argv);
+int orcm_octl_logical_group_remove(int argc, char **argv);
+int orcm_octl_logical_group_list(int argc, char **argv);
 int orcm_octl_analytics_workflow_add(char *file);
 int orcm_octl_analytics_workflow_remove(char **value);
 int orcm_octl_analytics_workflow_list (char **value);

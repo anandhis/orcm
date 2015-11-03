@@ -11,6 +11,11 @@
 #include "orcm/tools/octl/octl.h"
 #include "orcm/util/logical_group.h"
 
+/***
+Remove 'implicit' warnings...
+****/
+int orcm_octl_sensor_inventory_get(int command, char** argv);
+
 /******************
  * Local Functions
  ******************/
@@ -181,8 +186,7 @@ static int orcm_octl_work(int argc, char *argv[])
                 fprintf(stderr, "\nNo command specified\n");
                 continue;
             }
-            if ((0 == strcmp(mycmd,"quit")) ||
-               (0 == strcmp(mycmd,"exit"))) {
+            if (0 == strcmp(mycmd,"quit")) {
                 printf("\nExiting...\n");
                 interactive = false;
                 free(mycmd);
@@ -562,6 +566,9 @@ static int run_cmd(char *cmd)
                 case 31: //sample-rate
                     rc = orcm_octl_sensor_sample_rate_get(ORCM_GET_SENSOR_SAMPLE_RATE_COMMAND, cmdlist);
                     break;
+                case 37: //inventory
+                    rc = orcm_octl_sensor_inventory_get(ORCM_GET_DB_SENSOR_INVENTORY_COMMAND, cmdlist);
+                    break;
                 default:
                     rc = ORCM_ERROR;
                     break;
@@ -582,13 +589,13 @@ static int run_cmd(char *cmd)
         switch (rc)
         {
         case 5: //add
-            rc = orcm_octl_grouping_add(sz_cmdlist, cmdlist);
+            rc = orcm_octl_logical_group_add(sz_cmdlist, cmdlist);
             break;
         case 6: //remove
-            rc = orcm_octl_grouping_remove(sz_cmdlist, cmdlist);
+            rc = orcm_octl_logical_group_remove(sz_cmdlist, cmdlist);
             break;
         case 33: //list
-            rc = orcm_octl_grouping_list(sz_cmdlist, cmdlist);
+            rc = orcm_octl_logical_group_list(sz_cmdlist, cmdlist);
             break;
         default:
             rc = ORCM_ERROR;
@@ -612,13 +619,13 @@ static int run_cmd(char *cmd)
             switch(rc)
             {
             case 5://add
-                orcm_octl_analytics_workflow_add(cmdlist[3]);
+                rc = orcm_octl_analytics_workflow_add(cmdlist[3]);
                 break;
             case 6://remove
-                orcm_octl_analytics_workflow_remove(cmdlist);
+                rc = orcm_octl_analytics_workflow_remove(cmdlist);
                 break;
             case 17://get
-                orcm_octl_analytics_workflow_list(cmdlist);
+                rc = orcm_octl_analytics_workflow_list(cmdlist);
                 break;
             default:
                 rc = ORCM_ERROR;
@@ -648,6 +655,26 @@ static int run_cmd(char *cmd)
 
 static int octl_facility_cleanup(void)
 {
-    int erri = orcm_logical_group_delete();
+    int erri = orcm_logical_group_finalize();
     return erri;
+}
+
+static void octl_print_illegal_command(char *cmd)
+{
+    if (NULL != cmd) {
+        fprintf(stderr, "\nERROR: Illegal command: %s\n", cmd);
+    }
+    return;
+}
+
+static void octl_print_error(int rc)
+{
+    if (ORCM_SUCCESS != rc) {
+        const char *errmsg = ORTE_ERROR_NAME(rc);
+        if (NULL != errmsg) {
+            fprintf(stdout, "\nERROR: %s\n", errmsg);
+        } else {
+            fprintf(stdout, "\nERROR: Internal\n");
+        }
+    }
 }

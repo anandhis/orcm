@@ -116,6 +116,15 @@ static int slm_fork_hnp_procs(orte_jobid_t jobid, int port_num, int hnp,
                        char *hnp_uri, orcm_alloc_t *alloc, int *stepd_pid);
 static int kill_local(pid_t pid, int signum);
 
+static void hide_cmdline_parameters(int arg_cnt, char *str[]){
+   int cnt;
+   for(cnt=1; cnt < (arg_cnt-1); cnt++){
+      if ((strcmp(str[cnt],"sensor_ipmi_bmc_password") == 0) || (strcmp(str[cnt],"sensor_ipmi_bmc_username") == 0)){
+          memset(str[cnt+1],'X', strlen(str[cnt+1]));
+      }
+    }
+}
+
 int main(int argc, char *argv[])
 {
     int ret;
@@ -184,6 +193,8 @@ int main(int argc, char *argv[])
         exit(0);
     }
 
+    hide_cmdline_parameters(argc,argv);
+    
     /***************
      * Initialize
      ***************/
@@ -206,11 +217,17 @@ int main(int argc, char *argv[])
                             NULL);
 
     if (ORCM_PROC_IS_AGGREGATOR) {
-        opal_output(0, "\n******************************\n%s: ORCM version: %s AGGREGATOR: %s started and connected to AGGREGATOR: %s\n******************************\n",
-                    ctmp,
-                    ORCM_VERSION,
-                    ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
-                    ORTE_NAME_PRINT(ORTE_PROC_MY_PARENT));
+        if ((ORTE_PROC_MY_PARENT->jobid == ORTE_PROC_MY_SCHEDULER->jobid) 
+            && (ORTE_PROC_MY_PARENT->vpid == ORTE_PROC_MY_SCHEDULER->vpid)) {
+            opal_output(0, "\n******************************\n%s: ORCM version: %s AGGREGATOR: %s started and connected to SCHEDULER: %s\n******************************\n",
+                ctmp, ORCM_VERSION, ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
+                ORTE_NAME_PRINT(ORTE_PROC_MY_PARENT));
+
+        } else {
+            opal_output(0, "\n******************************\n%s: ORCM version: %s AGGREGATOR: %s started and connected to AGGREGATOR: %s\n******************************\n",
+                ctmp, ORCM_VERSION, ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
+                ORTE_NAME_PRINT(ORTE_PROC_MY_PARENT));
+        }
     } else {
         opal_output(0, "\n******************************\n%s: ORCM version: %s DAEMON: %s started and connected to AGGREGATOR: %s\n******************************\n",
                     ctmp,
